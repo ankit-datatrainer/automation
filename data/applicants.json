@@ -1,0 +1,13 @@
+[
+  {
+    "first_name": "Ankit",
+    "last_name": "Sharma",
+    "gender": "Male",
+    "dob": "15/06/1995",
+    "nationality": "India",
+    "passport_number": "Z1234567",
+    "passport_expiry": "20/05/2031",
+    "phone": "7838349247",
+    "email": "ankit.developer2004@gmail.com"
+  }
+]

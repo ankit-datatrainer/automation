@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VFS Global Automation — Crystal Clear Live View</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #070b14;
+      --bg-card: #0d1527;
+      --bg-chrome: #131c31;
+      --border: rgba(255, 255, 255, 0.1);
+      --brand-orange: #f97316;
+      --brand-orange-glow: rgba(249, 115, 22, 0.35);
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --emerald: #10b981;
+      --rose: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-primary);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Live Header Bar */
+    .live-nav {
+      background: var(--bg-chrome);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      flex-wrap: wrap;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .brand-pill .badge {
+      background: var(--brand-orange);
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 800;
+    }
+
+    .live-status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #f87171;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .live-status-pill.idle {
+      background: rgba(148, 163, 184, 0.15);
+      border-color: rgba(148, 163, 184, 0.3);
+      color: #94a3b8;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      box-shadow: 0 0 10px #ef4444;
+      animation: pulse 1s infinite alternate;
+    }
+
+    @keyframes pulse {
+      from { transform: scale(0.9); opacity: 0.8; }
+      to { transform: scale(1.2); opacity: 1; }
+    }
+
+    .step-pill {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border);
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .step-pill strong {
+      color: var(--brand-orange);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-action {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-action:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-action.primary {
+      background: var(--brand-orange);
+      color: #fff;
+      border: none;
+    }
+    .btn-action.primary:hover {
+      background: #ea580c;
+    }
+
+    /* Live Screen Display Arena */
+    .stream-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: #020617;
+      position: relative;
+    }
+
+    .viewport-box {
+      width: 100%;
+      max-width: 1400px;
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .viewport-topbar {
+      background: #0f172a;
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.8rem;
+    }
+
+    .browser-url-bar {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: #94a3b8;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .viewport-body {
+      position: relative;
+      width: 100%;
+      min-height: 520px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      overflow: auto;
+    }
+
+    #streamImg {
+      width: 100%;
+      height: auto;
+      max-height: 85vh;
+      object-fit: contain;
+      display: block;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      transition: transform 0.2s ease;
+    }
+
+    .controls-bar {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 1400px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .fps-counter {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: #64748b;
+    }
+
+    .zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-card);
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .btn-zoom {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .btn-zoom.active, .btn-zoom:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .live-nav {
+        padding: 10px 14px;
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .nav-left, .nav-actions {
+        justify-content: space-between;
+      }
+      .stream-container {
+        padding: 10px;
+      }
+      .viewport-body {
+        min-height: 280px;
+      }
+      #streamImg {
+        max-height: 70vh;
+      }
+      .controls-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <nav class="live-nav">
+    <div class="nav-left">
+      <a href="/" class="brand-pill">
+        <span class="badge">VFS</span>
+        <span>Bulgaria Live View</span>
+      </a>
+      <div class="live-status-pill" id="livePill">
+        <span class="live-dot"></span>
+        <span id="statusLabel">LIVE SESSION ACTIVE</span>
+      </div>
+      <div class="step-pill">
+        <span>Step:</span>
+        <strong id="stepLabel">STARTING</strong>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <button class="btn-action" onclick="refreshNow()" title="Force immediate frame refresh">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+        </svg>
+        <span>Refresh</span>
+      </button>
+      <button class="btn-action" onclick="toggleFullscreen()" title="Toggle Fullscreen">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+        </svg>
+        <span>Fullscreen</span>
+      </button>
+      <a href="/" class="btn-action primary">
+        <span>Back to Control Dashboard ↗</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- Live Stream Container -->
+  <main class="stream-container">
+    <div class="viewport-box">
+      <div class="viewport-topbar">
+        <div class="browser-url-bar">
+          <span>🔒</span>
+          <span id="currentUrl">https://visa.vfsglobal.com/ind/en/bgr/book-an-appointment</span>
+        </div>
+        <span style="color:#64748b; font-size:0.75rem;" id="timeLabel">--:--:--</span>
+      </div>
+      <div class="viewport-body" id="viewportBody">
+        <img id="streamImg" src="/api/live_screen" alt="Crystal Clear Live Stream" onerror="handleStreamError()">
+      </div>
+    </div>
+
+    <!-- Controls & Info -->
+    <div class="controls-bar">
+      <div class="fps-counter" id="refreshStats">
+        Auto-refresh: Active (every 800ms) • Crystal-Clear 100% Quality
+      </div>
+      <div class="zoom-controls">
+        <button class="btn-zoom active" onclick="setZoom('fit', this)">Fit to Window</button>
+        <button class="btn-zoom" onclick="setZoom('100%', this)">100% Original</button>
+        <button class="btn-zoom" onclick="setZoom('125%', this)">125% Enlarged</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let pollInterval = null;
+    let frameCount = 0;
+    const imgEl = document.getElementById("streamImg");
+    const statusLabel = document.getElementById("statusLabel");
+    const stepLabel = document.getElementById("stepLabel");
+    const timeLabel = document.getElementById("timeLabel");
+
+    function fetchNextFrame() {
+      const timestamp = new Date().getTime();
+      const nextImg = new Image();
+      nextImg.onload = function() {
+        imgEl.src = nextImg.src;
+        frameCount++;
+        timeLabel.innerText = new Date().toLocaleTimeString();
+      };
+      nextImg.src = `/api/live_screen?t=${timestamp}`;
+    }
+
+    async function syncStatus() {
+      try {
+        const res = await fetch("/api/status");
+        const data = await res.json();
+        if (data.state) {
+          statusLabel.innerText = data.state.status || "IDLE";
+          stepLabel.innerText = data.state.current_step || "NONE";
+          const pill = document.getElementById("livePill");
+          if (data.state.status === "RUNNING") {
+            pill.className = "live-status-pill";
+          } else {
+            pill.className = "live-status-pill idle";
+          }
+        }
+      } catch (e) {}
+    }
+
+    function refreshNow() {
+      fetchNextFrame();
+      syncStatus();
+    }
+
+    function handleStreamError() {
+      timeLabel.innerText = "Reconnecting...";
+    }
+
+    function setZoom(mode, btn) {
+      document.querySelectorAll(".btn-zoom").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      if (mode === "fit") {
+        imgEl.style.width = "100%";
+        imgEl.style.maxWidth = "100%";
+        imgEl.style.transform = "none";
+      } else if (mode === "100%") {
+        imgEl.style.width = "auto";
+        imgEl.style.maxWidth = "none";
+        imgEl.style.transform = "none";
+      } else if (mode === "125%") {
+        imgEl.style.width = "125%";
+        imgEl.style.maxWidth = "none";
+        imgEl.style.transform = "scale(1.0)";
+      }
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {});
+      } else {
+        document.exitFullscreen().catch(err => {});
+      }
+    }
+
+    // Start Real-Time Live Polling
+    window.addEventListener("DOMContentLoaded", () => {
+      fetchNextFrame();
+      syncStatus();
+      pollInterval = setInterval(fetchNextFrame, 800);
+      setInterval(syncStatus, 2500);
+    });
+  </script>
+</body>
+</html>
