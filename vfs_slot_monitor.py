@@ -27,6 +27,7 @@ from config import cfg
 from time_utils import get_ist_now, format_ist_dt, format_ist_hm, format_ist_date, format_ist_display, IST
 import vfs_db
 import vfs_notifications
+from vfs_browser import setup_performance_routes
 
 log = logging.getLogger("vfs.slot_monitor")
 
@@ -173,7 +174,11 @@ class VFSSlotMonitor:
                         "--disable-blink-features=AutomationControlled",
                         "--no-sandbox",
                         "--disable-setuid-sandbox",
-                        "--disable-dev-shm-usage"
+                        "--disable-dev-shm-usage",
+                        "--disable-background-timer-throttling",
+                        "--disable-backgrounding-occluded-windows",
+                        "--disable-renderer-backgrounding",
+                        "--disable-component-update"
                     ]
                 )
                 ctx = browser.new_context(
@@ -183,18 +188,17 @@ class VFSSlotMonitor:
                 )
                 ctx.add_init_script("delete Object.getPrototypeOf(navigator).webdriver;")
                 page = ctx.new_page()
+                setup_performance_routes(page)
                 
                 try:
                     page.goto(portal_url, wait_until="domcontentloaded", timeout=35000)
-                    time.sleep(2)
 
                     # Dismiss cookies
                     for sel in ["#onetrust-accept-btn-handler", "#onetrust-reject-all-handler", "button:has-text('Accept All Cookies')", "button:has-text('Accept Only Necessary')"]:
                         try:
                             loc = page.locator(sel).first
                             if loc.count() > 0 and loc.is_visible():
-                                loc.click(timeout=1500)
-                                time.sleep(0.5)
+                                loc.click(timeout=1000)
                                 break
                         except Exception:
                             pass
@@ -220,8 +224,11 @@ class VFSSlotMonitor:
                     else:
                         page.select_option("#visa-centre", index=4)
 
-                    # Wait for results to populate
-                    time.sleep(2.5)
+                    # Dynamic wait for results to populate (replaces hard 2.5s sleep)
+                    try:
+                        page.locator("text='available', text='Available', text='No date', text='Earliest', text='Appointments'").first.wait_for(state="visible", timeout=3000)
+                    except Exception:
+                        pass
 
                     # Capture screenshot
                     try:

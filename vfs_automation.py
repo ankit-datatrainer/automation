@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -131,13 +132,16 @@ class VFSAutomation:
             return False
 
     def take_screenshot(self, name: str):
-        """Capture screenshot to data/screenshots directory and update latest.png."""
+        """Capture screenshot to data/screenshots directory and update latest.png with single encoding."""
         if self.page:
             try:
                 dest = SCREENSHOTS_DIR / f"{name}.png"
-                self.page.screenshot(path=str(dest))
+                img_bytes = self.page.screenshot(type="png")
+                with open(dest, "wb") as f:
+                    f.write(img_bytes)
                 latest = SCREENSHOTS_DIR / "latest.png"
-                self.page.screenshot(path=str(latest))
+                with open(latest, "wb") as f:
+                    f.write(img_bytes)
             except Exception as e:
                 log.debug(f"Could not take screenshot {name}: {e}")
 
@@ -258,76 +262,41 @@ class VFSAutomation:
                 headless=self.cfg.HEADLESS
             )
 
+            # Start background thread to establish Gmail baseline early (zero blocking time)
+            baseline_result = {"uid": 0, "time": datetime.now(timezone.utc)}
+            def _async_baseline():
+                try:
+                    uid, t = get_inbox_baseline(self.cfg.VFS_GMAIL_USER, self.cfg.VFS_GMAIL_APP_PASSWORD)
+                    baseline_result["uid"] = uid
+                    baseline_result["time"] = t
+                    log.info(f"Background Gmail baseline established: UID={uid}")
+                except Exception as ex:
+                    log.debug(f"Async baseline note: {ex}")
+            threading.Thread(target=_async_baseline, daemon=True).start()
+
             try:
                 # -------------------------------------------------------------
-                # STEP 1: Open Book An Appointment Page
+                # STEP 1 & 2: Fast-Path Direct Navigation to VFS Login
                 # -------------------------------------------------------------
-                self.report("NAVIGATION", f"Opening {self.cfg.BOOK_APPOINTMENT_URL}...")
-                self.page.goto(self.cfg.BOOK_APPOINTMENT_URL, wait_until="domcontentloaded", timeout=self.cfg.ACTION_TIMEOUT_MS)
-                self.dismiss_cookie_banner()
-                if sys.platform == "win32" and not self.cfg.HEADLESS:
-                    bring_window_to_front_win32(self.page)
-                self.page.wait_for_timeout(1500)
-                self.take_screenshot("01_book_an_appointment")
-
-                if self.check_pause_and_stop():
-                    self.report("STOPPED", "Automation cancelled by user.")
-                    return
-
-                # -------------------------------------------------------------
-                # STEP 2: Click "Book now" Button
-                # -------------------------------------------------------------
+                self.report("NAVIGATION", f"Fast-navigating directly to VFS Portal: {self.cfg.LOGIN_URL}...")
                 try:
-                    book_now = self.page.locator(
-                        'a:has-text("Book now"), button:has-text("Book now"), a.btn-brand-orange, a[href*="/login"]'
-                    ).first
-                    book_now.wait_for(state="visible", timeout=8000)
-                    self.report("NAVIGATION", "Clicking 'Book now' to proceed to login...")
-
-                    # Handle popup or in-page navigation cleanly
-                    is_popup = False
-                    try:
-                        is_popup = book_now.get_attribute("target") == "_blank"
-                    except Exception:
-                        pass
-
-                    if is_popup:
-                        try:
-                            with self.context.expect_page(timeout=10000) as new_page_info:
-                                book_now.click()
-                            self.page = new_page_info.value
-                            self.page.wait_for_load_state("domcontentloaded")
-                        except Exception:
-                            pass
-                    else:
-                        try:
-                            with self.context.expect_page(timeout=2500) as new_page_info:
-                                book_now.click()
-                            self.page = new_page_info.value
-                        except PlaywrightTimeout:
-                            pass
-                except Exception:
-                    self.report("NAVIGATION", f"Directing directly to login URL: {self.cfg.LOGIN_URL}...")
                     self.page.goto(self.cfg.LOGIN_URL, wait_until="domcontentloaded", timeout=self.cfg.ACTION_TIMEOUT_MS)
+                except Exception:
+                    self.page.goto(self.cfg.BOOK_APPOINTMENT_URL, wait_until="domcontentloaded", timeout=self.cfg.ACTION_TIMEOUT_MS)
 
-                self.page.wait_for_timeout(2000)
                 self.dismiss_cookie_banner()
                 if sys.platform == "win32" and not self.cfg.HEADLESS:
                     bring_window_to_front_win32(self.page)
-                self.take_screenshot("02_login_redirect")
+                self.take_screenshot("01_portal_loaded")
 
                 if self.check_pause_and_stop():
                     self.report("STOPPED", "Automation cancelled by user.")
                     return
 
                 # -------------------------------------------------------------
-                # STEP 3: Enter Login Credentials
+                # STEP 3: Instant Login Credentials Entry
                 # -------------------------------------------------------------
-                self.report("LOGIN", "Waiting for login page inputs...")
-                if self.cfg.LOGIN_URL not in self.page.url:
-                    self.page.goto(self.cfg.LOGIN_URL, wait_until="domcontentloaded", timeout=self.cfg.ACTION_TIMEOUT_MS)
-                    self.dismiss_cookie_banner()
-
+                self.report("LOGIN", "Entering credentials...")
                 email_input = self.page.locator(
                     'input#email, input[formcontrolname="username"], input[type="email"], input[placeholder*="email" i]'
                 ).first
@@ -338,18 +307,14 @@ class VFSAutomation:
                 ).first
                 pwd_input.wait_for(state="visible", timeout=20000)
 
-                self.report("LOGIN", f"Entering email: {self.cfg.VFS_EMAIL}...")
                 email_input.click()
-                email_input.fill("")
-                email_input.press_sequentially(self.cfg.VFS_EMAIL, delay=25)
+                email_input.fill(self.cfg.VFS_EMAIL)
                 email_input.dispatch_event("input")
                 email_input.dispatch_event("change")
                 email_input.evaluate("el => el.blur()")
 
-                self.report("LOGIN", "Entering password...")
                 pwd_input.click()
-                pwd_input.fill("")
-                pwd_input.press_sequentially(self.cfg.VFS_PASSWORD, delay=25)
+                pwd_input.fill(self.cfg.VFS_PASSWORD)
                 pwd_input.dispatch_event("input")
                 pwd_input.dispatch_event("change")
                 pwd_input.evaluate("el => el.blur()")
@@ -361,31 +326,18 @@ class VFSAutomation:
                     return
 
                 # -------------------------------------------------------------
-                # STEP 4: Cloudflare Verification & Click "Sign In"
+                # STEP 4: Cloudflare Verification & Fast-Click "Sign In"
                 # -------------------------------------------------------------
-                # Establish Gmail baseline BEFORE clicking Sign In
-                self.report("LOGIN", "Establishing Gmail inbox baseline before requesting OTP...")
-                baseline_uid = 0
-                baseline_time = datetime.now(timezone.utc)
-                try:
-                    baseline_uid, baseline_time = get_inbox_baseline(
-                        self.cfg.VFS_GMAIL_USER,
-                        self.cfg.VFS_GMAIL_APP_PASSWORD
-                    )
-                    self.report("LOGIN", f"Inbox baseline set (latest email UID: {baseline_uid}).")
-                except Exception as e:
-                    self.report("LOGIN", f"Notice: Could not get baseline UID: {e}. Will poll fresh timestamps.")
-
-                self.report("LOGIN", "Checking Cloudflare Turnstile and Sign In button...")
-                self.handle_cloudflare_turnstile(max_retries=3)
+                self.report("LOGIN", "Verifying Turnstile and Sign In button...")
+                self.handle_cloudflare_turnstile(max_retries=2)
 
                 sign_in_btn = self.page.locator(
                     'button.btn-brand-orange, button:has-text("Sign In"), button[type="submit"]:has-text("Sign In"), button[type="submit"]'
                 ).first
                 sign_in_btn.wait_for(state="visible", timeout=10000)
 
-                # Wait up to 60s for button enabled / token populated
-                deadline = time.monotonic() + 60
+                # High-speed polling (every 250ms)
+                deadline = time.monotonic() + 45
                 clicked_signin = False
                 while time.monotonic() < deadline:
                     if self.check_pause_and_stop():
@@ -394,45 +346,25 @@ class VFSAutomation:
 
                     self.handle_cloudflare_turnstile(max_retries=1)
 
-                    # Check if button is enabled
-                    is_enabled = False
-                    try:
-                        is_enabled = sign_in_btn.is_enabled()
-                    except Exception:
-                        pass
-
-                    if is_enabled:
-                        self.report("LOGIN", "Sign In button enabled. Submitting login credentials...")
+                    if sign_in_btn.is_enabled():
+                        self.report("LOGIN", "Sign In button active. Submitting credentials...")
                         sign_in_btn.click()
                         clicked_signin = True
                         self.take_screenshot("04_signin_clicked")
                         break
 
-                    # Also check if Turnstile has completed token even if Angular hasn't refreshed button state yet
+                    # Token fallback
                     try:
                         token_el = self.page.locator('input[name="cf-turnstile-response"]').first
                         if token_el.count() > 0 and len(token_el.input_value().strip()) > 10:
-                            for _ in range(8):
-                                if sign_in_btn.is_enabled():
-                                    is_enabled = True
-                                    break
-                                self.page.wait_for_timeout(1000)
-                            if is_enabled:
-                                self.report("LOGIN", "Sign In button enabled. Submitting login credentials...")
-                                sign_in_btn.click()
-                                clicked_signin = True
-                                self.take_screenshot("04_signin_clicked")
-                                break
-                            else:
-                                self.report("LOGIN", "Turnstile token present. Triggering form submit...")
-                                self.page.evaluate("() => { const f = document.querySelector('form'); if(f) f.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true})); const b = document.querySelector('button.btn-brand-orange, button[type=\"submit\"]'); if(b) { b.removeAttribute('disabled'); b.click(); } }")
-                                clicked_signin = True
-                                self.take_screenshot("04_signin_clicked")
-                                break
+                            self.page.evaluate("() => { const f = document.querySelector('form'); if(f) f.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true})); const b = document.querySelector('button.btn-brand-orange, button[type=\"submit\"]'); if(b) { b.removeAttribute('disabled'); b.click(); } }")
+                            clicked_signin = True
+                            self.take_screenshot("04_signin_clicked")
+                            break
                     except Exception:
                         pass
 
-                    self.page.wait_for_timeout(1200)
+                    self.page.wait_for_timeout(250)
 
                 if not clicked_signin:
                     self.report("LOGIN", "Attempting force click on Sign In button...")
@@ -443,11 +375,11 @@ class VFSAutomation:
                         pass
 
                 # -------------------------------------------------------------
-                # STEP 5: Detect OTP Challenge & Retrieve from Gmail or Operator
+                # STEP 5: Fast OTP Detection & Asynchronous Auto-Poll
                 # -------------------------------------------------------------
-                self.report("OTP", "Monitoring for OTP verification challenge...")
+                self.report("OTP", "Monitoring for OTP challenge...")
                 is_otp_screen = False
-                otp_detect_deadline = time.monotonic() + 35
+                otp_detect_deadline = time.monotonic() + 30
 
                 while time.monotonic() < otp_detect_deadline:
                     if self.check_pause_and_stop():
@@ -458,81 +390,95 @@ class VFSAutomation:
                     if "dashboard" in cur_url or "application" in cur_url:
                         break
 
-                    # Check for VFS rate-limiting / access restriction
+                    if self._is_on_otp_screen():
+                        is_otp_screen = True
+                        break
+
+                    # Check for rate-limiting
                     body_text = ""
                     try:
                         body_text = self.page.locator("body").inner_text()
                     except Exception:
                         pass
-                    if "429001" in body_text or "access restricted" in body_text.lower() or "page-not-found" in cur_url:
-                        self.report("ERROR", "VFS Temporary Rate Limit (429001): Access restricted on this user ID due to frequent login activity. Please wait for cooldown before retrying.")
+                    if "429001" in body_text or "access restricted" in body_text.lower():
+                        self.report("ERROR", "VFS Rate Limit (429001): Access restricted due to frequent logins. Waiting cooldown.")
                         self.take_screenshot("vfs_access_restricted_429001")
                         return
 
-                    if self._is_on_otp_screen():
-                        is_otp_screen = True
-                        break
-
-                    self.page.wait_for_timeout(1000)
+                    self.page.wait_for_timeout(250)
 
                 if is_otp_screen:
                     self.is_otp_prompt = True
-                    self.report("OTP", "OTP prompt active! Real browser brought to front. Enter OTP in real browser, submit via Dashboard, or wait for Gmail auto-fetch.")
+                    self.report("OTP", "OTP prompt active! Real browser brought to front. Enter OTP or wait for Gmail auto-fetch.")
                     if sys.platform == "win32" and not self.cfg.HEADLESS:
                         bring_window_to_front_win32(self.page)
                     self.take_screenshot("05_otp_screen_detected")
 
-                    # Wait up to 300 seconds (5 minutes) for OTP completion:
-                    # from Gmail auto-fetch, manual entry in browser, or via /api/submit_otp
-                    otp_overall_deadline = time.monotonic() + 300
-                    code_fetched = False
-                    last_poll_time = 0
-
-                    while time.monotonic() < otp_overall_deadline:
-                        if self.check_pause_and_stop():
-                            self.report("STOPPED", "Automation cancelled by user.")
-                            return
-
-                        cur_url = self.page.url.lower()
-                        # If user submitted OTP and reached dashboard or application-detail:
-                        if "dashboard" in cur_url or "application-detail" in cur_url:
-                            self.report("OTP", "OTP verified successfully! Reached dashboard.")
-                            self.is_otp_prompt = False
-                            break
-
-                        # Update screenshot periodically
-                        self.take_screenshot("05_otp_live")
-
-                        # Try fetching from Gmail every 4 seconds if not already fetched
-                        now = time.monotonic()
-                        if not code_fetched and (now - last_poll_time > 4):
-                            last_poll_time = now
+                    # Launch asynchronous Gmail OTP poller so the Playwright thread never blocks
+                    gmail_otp_state = {"code": None, "stop": False}
+                    def _async_poll_otp():
+                        base_u = baseline_result.get("uid", 0)
+                        base_t = baseline_result.get("time", datetime.now(timezone.utc))
+                        while not gmail_otp_state["stop"]:
                             try:
-                                code = fetch_latest_otp(
+                                c = fetch_latest_otp(
                                     user=self.cfg.VFS_GMAIL_USER,
                                     app_password=self.cfg.VFS_GMAIL_APP_PASSWORD,
-                                    baseline_uid=baseline_uid,
-                                    baseline_time=baseline_time,
-                                    timeout_seconds=3,
+                                    baseline_uid=base_u,
+                                    baseline_time=base_t,
+                                    timeout_seconds=2,
                                     poll_interval=2,
                                     log_callback=lambda msg: self.report("OTP", msg)
                                 )
-                                if code:
-                                    code_fetched = True
-                                    self.report("OTP", f"Retrieved OTP from Gmail: {code}. Entering into verification fields...")
-                                    self.submit_manual_otp(code)
+                                if c:
+                                    gmail_otp_state["code"] = c
+                                    break
                             except Exception:
                                 pass
+                            time.sleep(1.5)
 
-                        self.page.wait_for_timeout(1000)
+                    otp_poll_thread = threading.Thread(target=_async_poll_otp, daemon=True)
+                    otp_poll_thread.start()
 
+                    otp_overall_deadline = time.monotonic() + 300
+                    last_shot_time = 0
+
+                    while time.monotonic() < otp_overall_deadline:
+                        if self.check_pause_and_stop():
+                            gmail_otp_state["stop"] = True
+                            self.report("STOPPED", "Automation cancelled by user.")
+                            return
+
+                        # Check if background Gmail poller fetched the code
+                        if gmail_otp_state["code"]:
+                            code = gmail_otp_state["code"]
+                            gmail_otp_state["code"] = None
+                            gmail_otp_state["stop"] = True
+                            self.report("OTP", f"Retrieved OTP from Gmail: {code}. Entering into verification fields...")
+                            self.submit_manual_otp(code)
+
+                        cur_url = self.page.url.lower()
+                        if "dashboard" in cur_url or "application-detail" in cur_url or "your-details" in cur_url:
+                            self.report("OTP", "OTP verified successfully! Reached dashboard.")
+                            self.is_otp_prompt = False
+                            gmail_otp_state["stop"] = True
+                            break
+
+                        now = time.monotonic()
+                        if now - last_shot_time > 2.0:
+                            self.take_screenshot("05_otp_live")
+                            last_shot_time = now
+
+                        self.page.wait_for_timeout(250)
+
+                    gmail_otp_state["stop"] = True
                     self.is_otp_prompt = False
 
                 # -------------------------------------------------------------
                 # STEP 6: Dashboard & "Start New Booking"
                 # -------------------------------------------------------------
                 self.report("DASHBOARD", "Waiting for Dashboard page...")
-                dash_deadline = time.monotonic() + 60
+                dash_deadline = time.monotonic() + 45
                 found_dashboard = False
 
                 while time.monotonic() < dash_deadline:
@@ -541,11 +487,11 @@ class VFSAutomation:
                         return
 
                     cur_url = self.page.url.lower()
-                    if "dashboard" in cur_url or "application-detail" in cur_url:
+                    if "dashboard" in cur_url or "application-detail" in cur_url or "your-details" in cur_url:
                         found_dashboard = True
                         break
 
-                    self.page.wait_for_timeout(1000)
+                    self.page.wait_for_timeout(250)
 
                 if not found_dashboard:
                     self.report("ERROR", f"Could not reach dashboard within timeout. Current URL: {self.page.url}")
@@ -788,7 +734,10 @@ class VFSAutomation:
         if not self.page:
             return False
 
-        self.page.wait_for_timeout(3000)
+        try:
+            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner').wait_for(state="hidden", timeout=5000)
+        except Exception:
+            pass
         cur_url = self.page.url.lower()
 
         # Step 4: Optional Value Added Services
@@ -799,10 +748,13 @@ class VFSAutomation:
             svc_continue = self.page.locator('button.btn-brand-orange:has-text("Continue"), button:has-text("Continue"), button:has-text("Skip")').first
             if svc_continue.count() > 0 and svc_continue.is_visible():
                 try:
-                    svc_continue.click(timeout=5000)
+                    svc_continue.click(timeout=4000)
                 except Exception:
                     svc_continue.click(force=True)
-                self.page.wait_for_timeout(3500)
+                try:
+                    self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner').wait_for(state="hidden", timeout=5000)
+                except Exception:
+                    pass
 
         # Step 5: Review & Payment
         self.report("PAYMENT", "💳 FINAL STEP: Review & Payment screen reached! Maximizing real browser window in front of you...")
@@ -877,14 +829,17 @@ class VFSAutomation:
         except Exception:
             select_locator.click(force=True)
 
-        self.page.wait_for_timeout(1000)
+        try:
+            self.page.locator('.cdk-overlay-container mat-option, mat-option, .mat-mdc-option').first.wait_for(state="visible", timeout=2000)
+        except Exception:
+            self.page.wait_for_timeout(150)
 
         # Check if there is an input search filter inside the dropdown overlay
         try:
             search_input = self.page.locator('.cdk-overlay-container input[type="text"], .cdk-overlay-container input[placeholder*="search" i]').first
             if search_input.count() > 0 and search_input.is_visible() and target_text:
                 search_input.fill(target_text)
-                self.page.wait_for_timeout(600)
+                self.page.wait_for_timeout(150)
         except Exception:
             pass
 
@@ -921,7 +876,7 @@ class VFSAutomation:
         if not selected_opt and target_text:
             try:
                 self.page.keyboard.type(target_text[:3])
-                self.page.wait_for_timeout(500)
+                self.page.wait_for_timeout(200)
                 options = self.page.locator('.cdk-overlay-container mat-option, mat-option, .mat-mdc-option').all()
                 for opt in options:
                     txt = opt.inner_text().strip()
@@ -948,7 +903,7 @@ class VFSAutomation:
             self.report("FORM", f"Target '{target_text}' not explicitly matched. Selecting: '{first_txt}'")
             options[0].click()
 
-        self.page.wait_for_timeout(1200)
+        self.page.wait_for_timeout(200)
         return option_texts
 
     def fill_appointment_details(self, centre: str = "", category: str = "", sub_category: str = "") -> bool:
@@ -968,10 +923,9 @@ class VFSAutomation:
         self.select_mat_option(centre_select, target_centre)
         self.take_screenshot("10_centre_selected")
 
-        # Wait for Category dropdown to enable
-        self.page.wait_for_timeout(2500)
+        # Dynamic wait for Category dropdown to become active
         try:
-            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=10000)
+            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=6000)
         except Exception:
             pass
 
@@ -982,10 +936,9 @@ class VFSAutomation:
         self.select_mat_option(category_select, target_category)
         self.take_screenshot("11_category_selected")
 
-        # Wait for Sub-Category dropdown to enable
-        self.page.wait_for_timeout(2500)
+        # Dynamic wait for Sub-Category dropdown to become active
         try:
-            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=10000)
+            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=6000)
         except Exception:
             pass
 
@@ -995,8 +948,6 @@ class VFSAutomation:
         sub_cat_select.wait_for(state="attached", timeout=15000)
         self.select_mat_option(sub_cat_select, target_sub_category)
         self.take_screenshot("12_sub_category_selected")
-
-        self.page.wait_for_timeout(2000)
         self.take_screenshot("13_appointment_details_complete")
 
         # Check if Continue button is enabled
@@ -1004,10 +955,13 @@ class VFSAutomation:
         if continue_btn.count() > 0 and continue_btn.is_visible():
             self.report("FORM", "Clicking 'Continue' to advance to Your Details...")
             try:
-                continue_btn.click(timeout=5000)
+                continue_btn.click(timeout=4000)
             except Exception:
                 continue_btn.click(force=True)
-            self.page.wait_for_timeout(3500)
+            try:
+                self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner').wait_for(state="hidden", timeout=6000)
+            except Exception:
+                pass
             self.take_screenshot("14_after_continue")
 
         return True
@@ -1261,13 +1215,14 @@ class VFSAutomation:
         if sys.platform == "win32" and not self.cfg.HEADLESS:
             bring_window_to_front_win32(self.page)
 
-        # 10. Rate limit countdown check (VFS enforces strict 30s wait before Save)
-        self.report("APPLICANT", f"[{app_idx}/{total_apps}] Details entered. Enforcing VFS 30-second security wait before Save...")
-        for wait_s in range(32, 0, -5):
-            warning_loc = self.page.locator('text="Please wait", text="wait 30 seconds"')
-            if warning_loc.count() > 0 and warning_loc.first.is_visible():
-                self.report("APPLICANT", f"VFS rate-limit active. Waiting for countdown ({wait_s}s remaining)...")
-            self.page.wait_for_timeout(5000)
+        # 10. Rate limit countdown check: Only wait if an actual VFS security countdown is displayed
+        warning_loc = self.page.locator('text="Please wait", text="wait 30 seconds", text="wait before"').first
+        if warning_loc.count() > 0 and warning_loc.is_visible():
+            self.report("APPLICANT", f"[{app_idx}/{total_apps}] VFS security countdown active. Waiting for timer...")
+            try:
+                warning_loc.wait_for(state="hidden", timeout=35000)
+            except Exception:
+                pass
 
         # 11. Click Save button
         self.report("APPLICANT", f"[{app_idx}/{total_apps}] Submitting and saving applicant details...")
@@ -1279,10 +1234,13 @@ class VFSAutomation:
 
         if save_btn.count() > 0 and save_btn.is_visible():
             try:
-                save_btn.click(timeout=5000)
+                save_btn.click(timeout=4000)
             except Exception:
                 save_btn.click(force=True)
-            self.page.wait_for_timeout(3500)
+            try:
+                self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner').wait_for(state="hidden", timeout=5000)
+            except Exception:
+                pass
 
         self.take_screenshot(f"16_applicant_{app_idx}_saved")
 
@@ -1295,9 +1253,8 @@ class VFSAutomation:
                 m_btn = modal_loc.locator('button:has-text("Continue"), button:has-text("OK"), button:has-text("Close"), button:has-text("Dismiss")').first
                 if m_btn.count() > 0 and m_btn.is_visible():
                     m_btn.click()
-                    self.page.wait_for_timeout(1500)
                     break
-            self.page.wait_for_timeout(500)
+            self.page.wait_for_timeout(200)
 
         return True
 
@@ -1337,7 +1294,7 @@ class VFSAutomation:
                     add_btn = self.page.locator(sel).first
                     if add_btn.count() > 0 and add_btn.is_visible():
                         try:
-                            add_btn.click(timeout=5000)
+                            add_btn.click(timeout=4000)
                         except Exception:
                             add_btn.click(force=True)
                         add_btn_clicked = True
@@ -1348,43 +1305,36 @@ class VFSAutomation:
                 else:
                     self.report("APPLICANT", f"Form ready for applicant {idx + 1}.")
 
-                self.page.wait_for_timeout(2500)
+                try:
+                    self.page.locator('input[formcontrolname*="first" i]').first.wait_for(state="visible", timeout=4000)
+                except Exception:
+                    self.page.wait_for_timeout(250)
 
             # Fill single applicant
             self._fill_single_applicant_form(app_data, app_idx=idx + 1, total_apps=total_apps)
-            self.page.wait_for_timeout(2000)
 
         # 13. All applicants entered! Check for Continue button to advance to Step 3
-        self.report("APPLICANT", f"All {total_apps} applicant(s) saved! Finalizing and clicking Continue...")
-        for _ in range(12):
+        self.report("APPLICANT", f"All {total_apps} applicant(s) saved! Advancing to Step 3 (Slot Booking)...")
+        continue_btn = self.page.locator(
+            'mat-card button.btn-brand-orange:has-text("Continue"), '
+            '.actions button.btn-brand-orange:has-text("Continue"), '
+            'button.btn-brand-orange:has-text("Continue"), '
+            'button:has-text("Continue")'
+        ).first
+
+        try:
+            continue_btn.wait_for(state="visible", timeout=6000)
             try:
-                self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=1500)
+                continue_btn.click(timeout=4000)
+            except Exception:
+                continue_btn.click(force=True)
+            try:
+                self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner').wait_for(state="hidden", timeout=6000)
             except Exception:
                 pass
-
-            continue_btn = self.page.locator(
-                'mat-card button.btn-brand-orange:has-text("Continue"), '
-                '.actions button.btn-brand-orange:has-text("Continue"), '
-                'button.btn-brand-orange:has-text("Continue"), '
-                'button:has-text("Continue")'
-            ).first
-
-            if continue_btn.count() > 0 and continue_btn.is_visible():
-                is_enabled = False
-                try:
-                    is_enabled = continue_btn.is_enabled()
-                except Exception:
-                    pass
-                if is_enabled:
-                    self.report("APPLICANT", "Clicking 'Continue' to advance to Step 3 (Book Appointment)...")
-                    try:
-                        continue_btn.click(timeout=5000)
-                    except Exception:
-                        continue_btn.click(force=True)
-                    self.page.wait_for_timeout(3500)
-                    self.take_screenshot("17_after_applicant_continue")
-                    break
-            self.page.wait_for_timeout(1500)
+            self.take_screenshot("17_after_applicant_continue")
+        except Exception:
+            pass
 
         return True
 
@@ -1395,21 +1345,20 @@ class VFSAutomation:
 
         self.report("SLOT", "Checking appointment calendar on Step 3...")
         try:
-            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=15000)
+            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=8000)
         except Exception:
             pass
-
-        self.page.wait_for_timeout(2000)
-        self.take_screenshot("18_calendar_screen")
 
         # Check if mat-calendar is present
         cal = self.page.locator('mat-calendar, .mat-calendar').first
         if cal.count() == 0:
             self.report("SLOT", "Waiting for appointment calendar component to render...")
             try:
-                cal.wait_for(state="visible", timeout=15000)
+                cal.wait_for(state="visible", timeout=8000)
             except Exception:
                 pass
+
+        self.take_screenshot("18_calendar_screen")
 
         # Look for enabled calendar cells across up to 12 months
         selected_date = False
@@ -1433,9 +1382,8 @@ class VFSAutomation:
                 cell_text = first_cell.inner_text().strip()
                 self.report("SLOT", f"Selecting earliest available date: Day {cell_text}...")
                 first_cell.click()
-                self.page.wait_for_timeout(2500)
-                self.take_screenshot("19_date_selected")
                 selected_date = True
+                self.take_screenshot("19_date_selected")
                 break
 
             # Try navigating to next month
@@ -1443,7 +1391,7 @@ class VFSAutomation:
             if next_month_btn.count() > 0 and next_month_btn.is_visible() and next_month_btn.is_enabled():
                 self.report("SLOT", f"No slots in current month view. Navigating to next month (attempt {month_attempt + 1})...")
                 next_month_btn.click()
-                self.page.wait_for_timeout(1500)
+                self.page.wait_for_timeout(300)
             else:
                 break
 
@@ -1451,11 +1399,15 @@ class VFSAutomation:
             self.report("SLOT", "No active date slot cells found in available months.")
             return False
 
-        # Select available time slot
+        # Select available time slot dynamically
         self.report("SLOT", "Waiting for available time slots to appear...")
-        self.page.wait_for_timeout(2000)
         try:
-            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner').wait_for(state="hidden", timeout=10000)
+            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner').wait_for(state="hidden", timeout=6000)
+        except Exception:
+            pass
+
+        try:
+            self.page.locator('mat-radio-button, .time-slot, mat-chip, .slot-item').first.wait_for(state="visible", timeout=5000)
         except Exception:
             pass
 
@@ -1472,7 +1424,6 @@ class VFSAutomation:
             slot_text = valid_slots[0].inner_text().strip()
             self.report("SLOT", f"Selecting time slot: '{slot_text}'...")
             valid_slots[0].click()
-            self.page.wait_for_timeout(1500)
             self.take_screenshot("20_slot_selected")
 
             # Click Continue to Step 4 / Review

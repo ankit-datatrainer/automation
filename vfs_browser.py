@@ -222,6 +222,29 @@ def bring_browser_to_front(page: Optional[Page] = None):
 bring_window_to_front_win32 = bring_browser_to_front
 
 
+def setup_performance_routes(page: Page):
+    """Block slow tracking scripts and third-party analytics to maximize page responsiveness."""
+    try:
+        def handle_route(route):
+            url = route.request.url.lower()
+            # Never block VFS Global or Cloudflare security components
+            if any(k in url for k in ["vfsglobal", "cloudflare", "turnstile"]):
+                route.continue_()
+                return
+            # Block heavy tracking, analytics, and telemetry that slow down the browser
+            if any(k in url for k in [
+                "google-analytics.com", "googletagmanager.com", "doubleclick.net",
+                "connect.facebook.net", "clarity.ms", "hotjar.com",
+                "quantserve.com", "scorecardresearch.com"
+            ]):
+                route.abort()
+            else:
+                route.continue_()
+        page.route("**/*", handle_route)
+    except Exception as e:
+        log.debug(f"Route blocking setup note: {e}")
+
+
 def launch_stealth_browser(
     playwright: Playwright,
     channel: str = "brave",
@@ -229,7 +252,7 @@ def launch_stealth_browser(
     user_data_dir: Optional[Path] = None,
     dashboard_url: str = "http://127.0.0.1:4140"
 ) -> Tuple[BrowserContext, Page]:
-    """Launch resilient browser session."""
+    """Launch high-performance resilient browser session."""
     exe = find_browser_executable(preferred=channel)
     profile_dir = user_data_dir or get_profile_dir(channel)
 
@@ -247,6 +270,10 @@ def launch_stealth_browser(
         "--no-first-run",
         "--disable-blink-features=AutomationControlled",
         "--disable-infobars",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--disable-component-update",
     ]
 
     launch_kwargs = {
@@ -271,13 +298,16 @@ def launch_stealth_browser(
     else:
         vfs_page = context.new_page()
 
+    # Apply tracking script blocker for high-speed page loads
+    setup_performance_routes(vfs_page)
+
     if not headless:
         try:
             vfs_page.bring_to_front()
         except Exception:
             pass
         if sys.platform == "win32":
-            time.sleep(1.0)
+            time.sleep(0.5)
             bring_browser_to_front(vfs_page)
 
     return context, vfs_page
