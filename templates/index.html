@@ -261,6 +261,12 @@
               </svg>
               <span>Start Automation</span>
             </button>
+            <button class="btn" id="btnPause" onclick="pauseAutomation()" style="display:none; background:#eab308; color:#000; font-weight:700;" title="Pause automation and take manual control in the real browser">
+              <span>⏸️ Pause / Takeover</span>
+            </button>
+            <button class="btn" id="btnResume" onclick="resumeAutomation()" style="display:none; background:#10b981; color:#fff; font-weight:700;" title="Resume automation from current stage">
+              <span>▶️ Resume Automation</span>
+            </button>
             <button class="btn btn-danger" id="btnStop" onclick="stopAutomation()" disabled>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="6" y="6" width="12" height="12"></rect>
@@ -285,18 +291,28 @@
           </div>
         </section>
 
-        <!-- Real Browser Interactive Notification -->
-        <div class="interactive-browser-banner" style="background: linear-gradient(90deg, rgba(99, 102, 241, 0.16), rgba(6, 182, 212, 0.12)); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 14px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; box-shadow: 0 4px 20px rgba(0,0,0,0.25);">
+        <!-- Real Browser Interactive Notification & Manual OTP Bar -->
+        <div class="interactive-browser-banner" id="indexBrowserBanner" style="background: linear-gradient(90deg, rgba(99, 102, 241, 0.16), rgba(6, 182, 212, 0.12)); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 14px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; box-shadow: 0 4px 20px rgba(0,0,0,0.25);">
           <div style="display: flex; align-items: center; gap: 0.85rem;">
-            <div style="font-size: 1.75rem; width: 44px; height: 44px; border-radius: 12px; background: rgba(99, 102, 241, 0.2); display: flex; align-items: center; justify-content: center;">🖥️</div>
+            <div style="font-size: 1.75rem; width: 44px; height: 44px; border-radius: 12px; background: rgba(99, 102, 241, 0.2); display: flex; align-items: center; justify-content: center;" id="indexBannerIcon">🖥️</div>
             <div>
-              <strong style="color: #fff; font-size: 0.95rem; display: block; margin-bottom: 0.2rem;">Real Live Browser Active on Your Desktop</strong>
-              <p style="color: #94a3b8; font-size: 0.82rem; margin: 0; line-height: 1.4;">The automation is running live in Brave/Chrome on your screen. You can directly watch keystrokes and clicks, add steps, enter OTP, and complete payment directly in the browser.</p>
+              <strong style="color: #fff; font-size: 0.95rem; display: block; margin-bottom: 0.2rem;" id="indexBannerTitle">Real Live Browser Active on Your Desktop</strong>
+              <p style="color: #94a3b8; font-size: 0.82rem; margin: 0; line-height: 1.4;" id="indexBannerSubtext">The automation runs live on your screen. You can pause anytime to take manual control, or submit OTP directly below.</p>
             </div>
           </div>
-          <button type="button" class="btn btn-primary" onclick="bringBrowserToFront()" style="padding: 0.55rem 1.1rem; font-size: 0.85rem; font-weight: 700; white-space: nowrap; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
-            🖥️ Show Real Browser
-          </button>
+          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <!-- OTP Input Bar -->
+            <div id="indexOtpContainer" style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.4); padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(249, 115, 22, 0.5);">
+              <span style="color:#f97316; font-size:0.85rem; font-weight:700;">🔑 OTP:</span>
+              <input type="text" id="indexOtpInput" placeholder="Enter OTP" maxlength="8" style="background:#0f172a; border:1px solid #475569; color:#fff; border-radius:6px; padding:5px 8px; font-family:'JetBrains Mono',monospace; font-size:0.85rem; font-weight:700; width:110px;" onkeydown="if(event.key==='Enter') submitManualOtpFromIndex()">
+              <button type="button" id="btnIndexSubmitOtp" onclick="submitManualOtpFromIndex()" style="background:#f97316; border:none; color:#fff; padding:5px 10px; border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer;">
+                Submit to Browser
+              </button>
+            </div>
+            <button type="button" class="btn btn-primary" onclick="bringBrowserToFront()" style="padding: 0.55rem 1.1rem; font-size: 0.85rem; font-weight: 700; white-space: nowrap; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
+              🖥️ Show Real Browser
+            </button>
+          </div>
         </div>
 
         <!-- Live Browser Screen Stream (Crucial for Local & VPS Remote Link) -->
@@ -986,8 +1002,76 @@
       try {
         await fetch("/api/stop", { method: "POST" });
         addLogLine(new Date().toLocaleTimeString(), "UI", "Stop requested.");
+        checkStatus();
       } catch (err) {
         console.error(err);
+      }
+    }
+
+    // Pause Automation for Operator Takeover
+    async function pauseAutomation() {
+      try {
+        const res = await fetch("/api/pause", { method: "POST" });
+        const d = await res.json();
+        if (d.success) {
+          addLogLine(new Date().toLocaleTimeString(), "PAUSED", "Automation paused for operator manual control.");
+          checkStatus();
+        } else {
+          alert(d.message);
+        }
+      } catch (err) {
+        alert("Network error: " + err);
+      }
+    }
+
+    // Resume Automation from Current Stage
+    async function resumeAutomation() {
+      try {
+        const res = await fetch("/api/resume", { method: "POST" });
+        const d = await res.json();
+        if (d.success) {
+          addLogLine(new Date().toLocaleTimeString(), "RUNNING", "Automation resumed by operator.");
+          checkStatus();
+        } else {
+          alert(d.message);
+        }
+      } catch (err) {
+        alert("Network error: " + err);
+      }
+    }
+
+    // Submit Manual OTP from Dashboard
+    async function submitManualOtpFromIndex() {
+      const input = document.getElementById("indexOtpInput");
+      const code = (input.value || "").trim();
+      if (!code) {
+        alert("Please enter the OTP code first.");
+        input.focus();
+        return;
+      }
+      const btn = document.getElementById("btnIndexSubmitOtp");
+      btn.disabled = true;
+      btn.innerText = "Submitting...";
+      try {
+        const res = await fetch("/api/submit_otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ otp: code })
+        });
+        const d = await res.json();
+        if (d.success) {
+          input.value = "";
+          addLogLine(new Date().toLocaleTimeString(), "OTP", `Submitted OTP code to browser.`);
+          refreshLiveFrame();
+          checkStatus();
+        } else {
+          alert(d.message);
+        }
+      } catch (err) {
+        alert("Failed to submit OTP: " + err);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Submit to Browser";
       }
     }
 
@@ -1214,6 +1298,13 @@
         const statusText = document.getElementById("statusText");
         const btnStart = document.getElementById("btnStart");
         const btnStop = document.getElementById("btnStop");
+        const btnPause = document.getElementById("btnPause");
+        const btnResume = document.getElementById("btnResume");
+        const indexOtpContainer = document.getElementById("indexOtpContainer");
+        const indexBrowserBanner = document.getElementById("indexBrowserBanner");
+        const indexBannerIcon = document.getElementById("indexBannerIcon");
+        const indexBannerTitle = document.getElementById("indexBannerTitle");
+        const indexBannerSubtext = document.getElementById("indexBannerSubtext");
 
         badge.className = `status-badge ${s.status.toLowerCase()}`;
         statusText.innerText = s.status;
@@ -1222,6 +1313,8 @@
         if (s.status === "RUNNING") {
           btnStart.disabled = true;
           btnStop.disabled = false;
+          if (btnPause) btnPause.style.display = "inline-flex";
+          if (btnResume) btnResume.style.display = "none";
           if (autoPill) {
             autoPill.textContent = "⚡ RUNNING SESSION";
             autoPill.style.background = "rgba(16, 185, 129, 0.25)";
@@ -1229,15 +1322,61 @@
             autoPill.style.borderColor = "rgba(16, 185, 129, 0.6)";
           }
           startLiveScreenPolling();
+        } else if (s.status === "PAUSED") {
+          btnStart.disabled = true;
+          btnStop.disabled = false;
+          if (btnPause) btnPause.style.display = "none";
+          if (btnResume) btnResume.style.display = "inline-flex";
+          if (autoPill) {
+            autoPill.textContent = "⏸️ PAUSED (MANUAL CONTROL)";
+            autoPill.style.background = "rgba(234, 179, 8, 0.25)";
+            autoPill.style.color = "#fbbf24";
+            autoPill.style.borderColor = "rgba(234, 179, 8, 0.6)";
+          }
+          if (indexBrowserBanner) {
+            indexBrowserBanner.style.border = "1px solid #eab308";
+            indexBrowserBanner.style.background = "linear-gradient(90deg, rgba(234, 179, 8, 0.2), rgba(249, 115, 22, 0.15))";
+          }
+          if (indexBannerIcon) indexBannerIcon.innerText = "⏸️";
+          if (indexBannerTitle) indexBannerTitle.innerText = "Manual Operator Takeover Active";
+          if (indexBannerSubtext) indexBannerSubtext.innerText = "Automation is paused. Complete actions directly in the real browser, or enter OTP below, then click Resume.";
         } else {
           btnStart.disabled = false;
           btnStop.disabled = true;
+          if (btnPause) btnPause.style.display = "none";
+          if (btnResume) btnResume.style.display = "none";
           if (autoPill) {
             autoPill.textContent = "IDLE (Click to run)";
             autoPill.style.background = "rgba(100, 116, 139, 0.2)";
             autoPill.style.color = "#94a3b8";
             autoPill.style.borderColor = "rgba(100, 116, 139, 0.4)";
           }
+          if (indexBrowserBanner) {
+            indexBrowserBanner.style.border = "1px solid rgba(99, 102, 241, 0.35)";
+            indexBrowserBanner.style.background = "linear-gradient(90deg, rgba(99, 102, 241, 0.16), rgba(6, 182, 212, 0.12))";
+          }
+          if (indexBannerIcon) indexBannerIcon.innerText = "🖥️";
+          if (indexBannerTitle) indexBannerTitle.innerText = "Real Live Browser Active on Your Desktop";
+          if (indexBannerSubtext) indexBannerSubtext.innerText = "The automation runs live on your screen. You can pause anytime to take manual control, or submit OTP directly below.";
+        }
+
+        // Highlight OTP container when OTP prompt is active
+        if (s.is_otp_prompt || s.current_step === "OTP") {
+          if (indexOtpContainer) {
+            indexOtpContainer.style.border = "2px solid #f97316";
+            indexOtpContainer.style.boxShadow = "0 0 12px rgba(249, 115, 22, 0.6)";
+          }
+        } else {
+          if (indexOtpContainer) {
+            indexOtpContainer.style.border = "1px solid rgba(249, 115, 22, 0.5)";
+            indexOtpContainer.style.boxShadow = "none";
+          }
+        }
+
+        // Update live address simulation if active_url is provided
+        const liveAddress = document.getElementById("liveAddress");
+        if (liveAddress && s.active_url) {
+          liveAddress.innerText = s.active_url;
         }
 
         if (s.current_step && s.current_step !== "NONE") {

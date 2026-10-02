@@ -25,6 +25,9 @@ class VFSAutomation:
         self.cfg = config
         self.log_cb = log_cb or (lambda status, msg: log.info(f"[{status}] {msg}"))
         self.stop_requested = False
+        self.is_paused = False
+        self.is_otp_prompt = False
+        self._should_resume_flow = False
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
         self.playwright = None
@@ -36,6 +39,96 @@ class VFSAutomation:
         log.info(f"[{step}] {message}")
         if self.log_cb:
             self.log_cb(step, message)
+
+    def pause(self):
+        """Pause automation workflow for operator manual takeover in real browser."""
+        self.is_paused = True
+        self.report("PAUSED", "Automation PAUSED for operator manual control. Real browser window brought to front.")
+        if sys.platform == "win32" and not self.cfg.HEADLESS:
+            bring_window_to_front_win32(self.page)
+
+    def resume(self):
+        """Resume automation workflow from where the operator left off."""
+        self.is_paused = False
+        self._should_resume_flow = True
+        self.report("RUNNING", "Automation RESUMED by operator. Resuming booking flow from active page...")
+
+    def check_pause_and_stop(self) -> bool:
+        """Helper that yields to pause loop or aborts on stop request. Returns True if stopped."""
+        if self.stop_requested:
+            return True
+        if self.is_paused:
+            self.report("PAUSED", "Automation is paused. Operator has manual control of real browser.")
+            if sys.platform == "win32" and not self.cfg.HEADLESS:
+                bring_window_to_front_win32(self.page)
+            while self.is_paused and not self.stop_requested:
+                if self.page:
+                    try:
+                        self.take_screenshot("live_view")
+                    except Exception:
+                        pass
+                time.sleep(0.8)
+            if self.stop_requested:
+                return True
+            self.report("RUNNING", "Resumed by operator! Continuing booking workflow...")
+        return False
+
+    def submit_manual_otp(self, otp_code: str) -> bool:
+        """Type manual OTP code directly into the browser verification fields and submit."""
+        if not self.page:
+            return False
+        clean_code = re.sub(r"\D", "", str(otp_code or "")).strip()
+        if len(clean_code) < 4:
+            self.report("OTP", f"Invalid OTP code provided: {otp_code}")
+            return False
+
+        self.report("OTP", f"Submitting operator OTP: {clean_code} into verification inputs...")
+        try:
+            otp_inputs = self.page.locator(
+                'input[formcontrolname="otp"], input#otp, input[placeholder*="OTP" i], '
+                'input[placeholder*="code" i], input[placeholder*="verification" i]'
+            ).all()
+            if not otp_inputs:
+                otp_inputs = self.page.locator('input[type="text"]:visible, input[type="number"]:visible, input[type="tel"]:visible').all()
+
+            if len(otp_inputs) == 1:
+                otp_inputs[0].click()
+                otp_inputs[0].fill("")
+                otp_inputs[0].press_sequentially(clean_code, delay=35)
+                otp_inputs[0].dispatch_event("input")
+                otp_inputs[0].dispatch_event("change")
+            elif len(otp_inputs) >= len(clean_code):
+                for idx, digit in enumerate(clean_code):
+                    otp_inputs[idx].click()
+                    otp_inputs[idx].fill(digit)
+                    otp_inputs[idx].dispatch_event("input")
+                    otp_inputs[idx].dispatch_event("change")
+
+            self.page.wait_for_timeout(600)
+            self.take_screenshot("manual_otp_entered")
+
+            # Check and solve Cloudflare Turnstile if needed
+            self.handle_cloudflare_turnstile(max_retries=1)
+
+            # Locate submit button
+            otp_submit = self.page.locator(
+                'button.btn-brand-orange, button:has-text("Sign In"), button:has-text("Verify"), '
+                'button:has-text("Submit"), button:has-text("Continue"), button[type="submit"]'
+            ).first
+
+            if otp_submit.count() > 0:
+                try:
+                    otp_submit.click(timeout=4000)
+                except Exception:
+                    self.page.evaluate("b => { if(b) { b.removeAttribute('disabled'); b.click(); } }", otp_submit)
+
+            self.page.wait_for_timeout(1500)
+            self.take_screenshot("manual_otp_submitted")
+            self.report("OTP", f"Submitted OTP {clean_code} to browser.")
+            return True
+        except Exception as e:
+            self.report("ERROR", f"Failed entering manual OTP: {e}")
+            return False
 
     def take_screenshot(self, name: str):
         """Capture screenshot to data/screenshots directory and update latest.png."""
@@ -177,7 +270,7 @@ class VFSAutomation:
                 self.page.wait_for_timeout(1500)
                 self.take_screenshot("01_book_an_appointment")
 
-                if self.stop_requested:
+                if self.check_pause_and_stop():
                     self.report("STOPPED", "Automation cancelled by user.")
                     return
 
@@ -223,7 +316,7 @@ class VFSAutomation:
                     bring_window_to_front_win32(self.page)
                 self.take_screenshot("02_login_redirect")
 
-                if self.stop_requested:
+                if self.check_pause_and_stop():
                     self.report("STOPPED", "Automation cancelled by user.")
                     return
 
@@ -263,7 +356,7 @@ class VFSAutomation:
 
                 self.take_screenshot("03_credentials_entered")
 
-                if self.stop_requested:
+                if self.check_pause_and_stop():
                     self.report("STOPPED", "Automation cancelled by user.")
                     return
 
@@ -295,7 +388,7 @@ class VFSAutomation:
                 deadline = time.monotonic() + 60
                 clicked_signin = False
                 while time.monotonic() < deadline:
-                    if self.stop_requested:
+                    if self.check_pause_and_stop():
                         self.report("STOPPED", "Automation cancelled by user.")
                         return
 
@@ -350,14 +443,14 @@ class VFSAutomation:
                         pass
 
                 # -------------------------------------------------------------
-                # STEP 5: Detect OTP Challenge & Retrieve from Gmail
+                # STEP 5: Detect OTP Challenge & Retrieve from Gmail or Operator
                 # -------------------------------------------------------------
                 self.report("OTP", "Monitoring for OTP verification challenge...")
                 is_otp_screen = False
                 otp_detect_deadline = time.monotonic() + 35
 
                 while time.monotonic() < otp_detect_deadline:
-                    if self.stop_requested:
+                    if self.check_pause_and_stop():
                         self.report("STOPPED", "Automation cancelled by user.")
                         return
 
@@ -376,129 +469,74 @@ class VFSAutomation:
                         self.take_screenshot("vfs_access_restricted_429001")
                         return
 
-                    otp_input = self.page.locator(
-                        'input[formcontrolname="otp"], input#otp, input[placeholder*="OTP" i], '
-                        'input[placeholder*="verification" i], input[placeholder*="code" i], '
-                        'input[autocomplete="one-time-code"]'
-                    ).first
-
-                    if otp_input.count() > 0 and otp_input.is_visible():
-                        is_otp_screen = True
-                        break
-
-                    if any(x in body_text.lower() for x in ("one time password", "sent an email", "enter otp", "verification code")):
+                    if self._is_on_otp_screen():
                         is_otp_screen = True
                         break
 
                     self.page.wait_for_timeout(1000)
 
                 if is_otp_screen:
-                    self.report("OTP", "OTP prompt confirmed on screen! Fetching latest OTP from Gmail...")
+                    self.is_otp_prompt = True
+                    self.report("OTP", "OTP prompt active! Real browser brought to front. Enter OTP in real browser, submit via Dashboard, or wait for Gmail auto-fetch.")
+                    if sys.platform == "win32" and not self.cfg.HEADLESS:
+                        bring_window_to_front_win32(self.page)
                     self.take_screenshot("05_otp_screen_detected")
 
-                    code = fetch_latest_otp(
-                        user=self.cfg.VFS_GMAIL_USER,
-                        app_password=self.cfg.VFS_GMAIL_APP_PASSWORD,
-                        baseline_uid=baseline_uid,
-                        baseline_time=baseline_time,
-                        timeout_seconds=self.cfg.OTP_TIMEOUT_SECONDS,
-                        poll_interval=3,
-                        log_callback=lambda msg: self.report("OTP", msg)
-                    )
+                    # Wait up to 300 seconds (5 minutes) for OTP completion:
+                    # from Gmail auto-fetch, manual entry in browser, or via /api/submit_otp
+                    otp_overall_deadline = time.monotonic() + 300
+                    code_fetched = False
+                    last_poll_time = 0
 
-                    if not code:
-                        self.report("ERROR", "Could not retrieve OTP from Gmail within timeout. Please enter manually.")
-                        # Wait for user manual entry or cancel
-                        self.page.wait_for_timeout(20000)
-                    else:
-                        self.report("OTP", f"Retrieved OTP code: {code}. Entering into verification fields...")
+                    while time.monotonic() < otp_overall_deadline:
+                        if self.check_pause_and_stop():
+                            self.report("STOPPED", "Automation cancelled by user.")
+                            return
 
-                        otp_inputs = self.page.locator(
-                            'input[formcontrolname="otp"], input#otp, input[placeholder*="OTP" i], '
-                            'input[placeholder*="code" i], input[placeholder*="verification" i]'
-                        ).all()
-                        if not otp_inputs:
-                            otp_inputs = self.page.locator('input[type="text"]:visible, input[type="number"]:visible, input[type="tel"]:visible').all()
+                        cur_url = self.page.url.lower()
+                        # If user submitted OTP and reached dashboard or application-detail:
+                        if "dashboard" in cur_url or "application-detail" in cur_url:
+                            self.report("OTP", "OTP verified successfully! Reached dashboard.")
+                            self.is_otp_prompt = False
+                            break
 
-                        if len(otp_inputs) == 1:
-                            otp_inputs[0].click()
-                            otp_inputs[0].fill("")
-                            otp_inputs[0].press_sequentially(code, delay=40)
-                            otp_inputs[0].dispatch_event("input")
-                            otp_inputs[0].dispatch_event("change")
-                        elif len(otp_inputs) >= len(code):
-                            for idx, digit in enumerate(code):
-                                otp_inputs[idx].click()
-                                otp_inputs[idx].fill(digit)
-                                otp_inputs[idx].dispatch_event("input")
-                                otp_inputs[idx].dispatch_event("change")
+                        # Update screenshot periodically
+                        self.take_screenshot("05_otp_live")
+
+                        # Try fetching from Gmail every 4 seconds if not already fetched
+                        now = time.monotonic()
+                        if not code_fetched and (now - last_poll_time > 4):
+                            last_poll_time = now
+                            try:
+                                code = fetch_latest_otp(
+                                    user=self.cfg.VFS_GMAIL_USER,
+                                    app_password=self.cfg.VFS_GMAIL_APP_PASSWORD,
+                                    baseline_uid=baseline_uid,
+                                    baseline_time=baseline_time,
+                                    timeout_seconds=3,
+                                    poll_interval=2,
+                                    log_callback=lambda msg: self.report("OTP", msg)
+                                )
+                                if code:
+                                    code_fetched = True
+                                    self.report("OTP", f"Retrieved OTP from Gmail: {code}. Entering into verification fields...")
+                                    self.submit_manual_otp(code)
+                            except Exception:
+                                pass
 
                         self.page.wait_for_timeout(1000)
-                        self.take_screenshot("06_otp_entered")
 
-                        # Submit OTP: ensure Turnstile is solved and button is enabled
-                        otp_submit = self.page.locator(
-                            'button.btn-brand-orange, button:has-text("Sign In"), button:has-text("Verify"), '
-                            'button:has-text("Submit"), button:has-text("Continue"), button[type="submit"]'
-                        ).first
-
-                        self.report("OTP", "Verifying Turnstile and waiting for OTP submit button...")
-                        otp_deadline = time.monotonic() + 45
-                        clicked_otp = False
-                        while time.monotonic() < otp_deadline:
-                            if self.stop_requested:
-                                self.report("STOPPED", "Automation cancelled by user.")
-                                return
-
-                            self.handle_cloudflare_turnstile(max_retries=1)
-
-                            is_enabled = False
-                            try:
-                                is_enabled = otp_submit.is_enabled()
-                            except Exception:
-                                pass
-
-                            if is_enabled:
-                                self.report("OTP", "OTP submit button enabled. Submitting OTP...")
-                                otp_submit.click()
-                                clicked_otp = True
-                                self.page.wait_for_timeout(3000)
-                                self.take_screenshot("07_otp_submitted")
-                                break
-
-                            # Also check Turnstile token in DOM
-                            try:
-                                token_el = self.page.locator('input[name="cf-turnstile-response"]').first
-                                if token_el.count() > 0 and len(token_el.input_value().strip()) > 10:
-                                    self.report("OTP", "Turnstile token present. Enabling and clicking OTP submit...")
-                                    otp_submit.evaluate("b => { b.removeAttribute('disabled'); b.click(); }")
-                                    clicked_otp = True
-                                    self.page.wait_for_timeout(3000)
-                                    self.take_screenshot("07_otp_submitted")
-                                    break
-                            except Exception:
-                                pass
-
-                            self.page.wait_for_timeout(1000)
-
-                        if not clicked_otp:
-                            self.report("OTP", "Attempting force click on OTP submit button...")
-                            try:
-                                otp_submit.click(force=True)
-                            except Exception:
-                                pass
-                            self.page.wait_for_timeout(3000)
-                            self.take_screenshot("07_otp_submitted")
+                    self.is_otp_prompt = False
 
                 # -------------------------------------------------------------
                 # STEP 6: Dashboard & "Start New Booking"
                 # -------------------------------------------------------------
                 self.report("DASHBOARD", "Waiting for Dashboard page...")
-                dash_deadline = time.monotonic() + 45
+                dash_deadline = time.monotonic() + 60
                 found_dashboard = False
 
                 while time.monotonic() < dash_deadline:
-                    if self.stop_requested:
+                    if self.check_pause_and_stop():
                         self.report("STOPPED", "Automation cancelled by user.")
                         return
 
@@ -512,119 +550,29 @@ class VFSAutomation:
                 if not found_dashboard:
                     self.report("ERROR", f"Could not reach dashboard within timeout. Current URL: {self.page.url}")
                     self.take_screenshot("error_not_on_dashboard")
+                    if self.check_pause_and_stop():
+                        return
                     return
 
                 self.take_screenshot("08_dashboard_reached")
 
                 # Locate and click "Start New Booking"
                 if "application-detail" not in self.page.url.lower():
-                    self.report("DASHBOARD", "Waiting for dashboard content and spinner to settle...")
-                    # Wait for Angular spinner overlay to hide
-                    try:
-                        self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=15000)
-                    except Exception:
-                        pass
-                    self.page.wait_for_timeout(2500)
+                    self._click_start_new_booking()
 
-                    self.report("DASHBOARD", "Locating 'Start New Booking' button...")
-                    start_booking_btn = self.page.locator(
-                        'button.btn-brand-orange:has-text("Start New Booking"), '
-                        'button:has-text("Start New Booking"), '
-                        'a:has-text("Start New Booking"), '
-                        'button:has-text("New Booking"), '
-                        'button:has-text("Start new booking")'
-                    ).first
-
-                    # Ensure button is attached to DOM
-                    start_booking_btn.wait_for(state="attached", timeout=15000)
-                    self.report("DASHBOARD", "Clicking 'Start New Booking'...")
-                    clicked = False
-                    try:
-                        start_booking_btn.click(force=True, timeout=5000)
-                        clicked = True
-                    except Exception:
-                        pass
-                    if not clicked:
-                        self.page.evaluate("() => { const btns = Array.from(document.querySelectorAll('button, a')); const b = btns.find(x => (x.textContent || '').includes('Start New Booking')); if(b) b.click(); }")
-
-                    self.page.wait_for_timeout(3000)
-
-                # -------------------------------------------------------------
-                # STEP 7: Application Detail Form
-                # -------------------------------------------------------------
-                self.report("APPLICATION_DETAIL", f"Waiting for {self.cfg.APPLICATION_DETAIL_URL}...")
-                app_deadline = time.monotonic() + 30
-                while time.monotonic() < app_deadline:
-                    if "application-detail" in self.page.url.lower():
-                        break
-                    self.page.wait_for_timeout(1000)
-
-                self.take_screenshot("09_application_detail_reached")
-                self.report(
-                    "APPLICATION_DETAIL",
-                    "SUCCESS: Reached Appointment Details page! Now filling Centre, Category, and Sub-Category..."
-                )
-
-                if sys.platform == "win32" and not self.cfg.HEADLESS:
-                    bring_window_to_front_win32(self.page)
-
-                # Automatically fill Step 1: Appointment Details
-                self.fill_appointment_details(
-                    centre=self.cfg.TARGET_CITY,
-                    category=self.cfg.VISA_CATEGORY,
-                    sub_category=getattr(self.cfg, "VISA_SUB_CATEGORY", "Business Visa")
-                )
-
-                # Check if Step 2 (Your Details) is reached
-                self.page.wait_for_timeout(3000)
-                cur_url = self.page.url.lower()
-                is_step2 = "your-details" in cur_url or "applicant" in cur_url or self.page.locator('.step-circle:has-text("2"), [class*="step"]:has-text("Your Details"), text="Your Details"').count() > 0
-
-                if is_step2:
-                    self.report("YOUR_DETAILS", f"Reached Step 2 (Your Details)! Filling information for {len(self.cfg.APPLICANTS_LIST)} applicant(s)...")
-                    self.fill_your_details(self.cfg.APPLICANTS_LIST)
-                    
-                    # Wait up to 25s for Step 3 (Book Appointment / Calendar)
-                    self.report("BOOK_APPOINTMENT", "Waiting for Step 3 (Appointment Calendar) to load...")
-                    step3_deadline = time.monotonic() + 25
-                    is_step3 = False
-                    while time.monotonic() < step3_deadline:
-                        if self.stop_requested:
-                            break
-                        if self.page.locator('mat-calendar, .mat-calendar').count() > 0:
-                            is_step3 = True
-                            break
-                        if self.page.locator('.step-circle.active:has-text("3"), [class*="step"]:has-text("Book Appointment").active').count() > 0:
-                            is_step3 = True
-                            break
-                        if self.page.locator('text="Select date", text="Choose appointment", text="Earliest available slot"').count() > 0:
-                            is_step3 = True
-                            break
-                        self.page.wait_for_timeout(1000)
-
-                    if is_step3:
-                        self.report("BOOK_APPOINTMENT", "Reached Step 3 (Book Appointment)! Selecting available appointment slot...")
-                        slot_ok = self.select_appointment_slot()
-                        if slot_ok:
-                            self.handle_services_and_payment()
-                        else:
-                            self.report("COMPLETED", "Slot search completed. Real browser window held open for review.")
-                            if sys.platform == "win32" and not self.cfg.HEADLESS:
-                                bring_window_to_front_win32(self.page)
-                    else:
-                        self.report("COMPLETED", "SUCCESS: Booking flow executed! Real browser window held open for review.")
-                        if sys.platform == "win32" and not self.cfg.HEADLESS:
-                            bring_window_to_front_win32(self.page)
-                else:
-                    self.report("COMPLETED", "SUCCESS: Appointment Details processed! Real browser window held open.")
-                    if sys.platform == "win32" and not self.cfg.HEADLESS:
-                        bring_window_to_front_win32(self.page)
+                # Step 7 & forward: Application Details, Your Details, and Slot Booking
+                self._fill_application_detail_and_forward()
 
                 while not self.stop_requested:
-                    self.page.wait_for_timeout(2000)
+                    if self.check_pause_and_stop():
+                        break
+                    if getattr(self, "_should_resume_flow", False):
+                        self._should_resume_flow = False
+                        self.resume_from_current_page()
+                    self.page.wait_for_timeout(1500)
 
             except Exception as e:
-                self.report("ERROR", f"Automation encountered an error: {str(e)}")
+                self.report("ERROR", f"Automation alert: {str(e)}. Browser kept open for manual takeover.")
                 self.take_screenshot("error_state")
                 try:
                     import vfs_db
@@ -633,13 +581,25 @@ class VFSAutomation:
                         passport_number=self.cfg.APPLICANT_PASSPORT_NUMBER,
                         target_city=self.cfg.TARGET_CITY,
                         visa_category=self.cfg.VISA_CATEGORY,
-                        status="ERROR",
+                        status="PAUSED_ERROR",
                         step_reached=self.current_step,
                         message=str(e)[:400]
                     )
                 except Exception:
                     pass
-                raise
+
+                # Keep browser open on desktop and pause for operator manual control!
+                self.pause()
+                if sys.platform == "win32" and not self.cfg.HEADLESS:
+                    bring_window_to_front_win32(self.page)
+
+                while not self.stop_requested:
+                    if self.check_pause_and_stop():
+                        break
+                    if getattr(self, "_should_resume_flow", False):
+                        self._should_resume_flow = False
+                        self.resume_from_current_page()
+                    self.page.wait_for_timeout(1500)
             finally:
                 if self.stop_requested:
                     self.report("STOPPED", "Session closed.")
@@ -647,6 +607,177 @@ class VFSAutomation:
                         self.context.close()
                     except Exception:
                         pass
+
+    def _is_on_otp_screen(self) -> bool:
+        """Check if browser is currently on OTP verification prompt."""
+        if not self.page:
+            return False
+        try:
+            otp_input = self.page.locator(
+                'input[formcontrolname="otp"], input#otp, input[placeholder*="OTP" i], '
+                'input[placeholder*="verification" i], input[placeholder*="code" i], '
+                'input[autocomplete="one-time-code"]'
+            ).first
+            if otp_input.count() > 0 and otp_input.is_visible():
+                return True
+            body_text = self.page.locator("body").inner_text()
+            if any(x in body_text.lower() for x in ("one time password", "sent an email", "enter otp", "verification code")):
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _click_start_new_booking(self) -> bool:
+        """Wait for dashboard to settle and click 'Start New Booking' button."""
+        if not self.page:
+            return False
+        self.report("DASHBOARD", "Waiting for dashboard content and spinner to settle...")
+        try:
+            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=15000)
+        except Exception:
+            pass
+        self.page.wait_for_timeout(2000)
+
+        self.report("DASHBOARD", "Locating 'Start New Booking' button...")
+        start_booking_btn = self.page.locator(
+            'button.btn-brand-orange:has-text("Start New Booking"), '
+            'button:has-text("Start New Booking"), '
+            'a:has-text("Start New Booking"), '
+            'button:has-text("New Booking"), '
+            'button:has-text("Start new booking")'
+        ).first
+
+        try:
+            start_booking_btn.wait_for(state="attached", timeout=12000)
+            self.report("DASHBOARD", "Clicking 'Start New Booking'...")
+            start_booking_btn.click(force=True, timeout=5000)
+            self.page.wait_for_timeout(2500)
+            return True
+        except Exception:
+            try:
+                self.page.evaluate("() => { const btns = Array.from(document.querySelectorAll('button, a')); const b = btns.find(x => (x.textContent || '').includes('Start New Booking')); if(b) b.click(); }")
+                self.page.wait_for_timeout(2500)
+                return True
+            except Exception:
+                return False
+
+    def _fill_application_detail_and_forward(self):
+        """Handle Step 1 (Application Detail) and forward to next steps."""
+        if self.check_pause_and_stop():
+            return
+        self.report("APPLICATION_DETAIL", f"Waiting for {self.cfg.APPLICATION_DETAIL_URL}...")
+        app_deadline = time.monotonic() + 30
+        while time.monotonic() < app_deadline:
+            if self.check_pause_and_stop():
+                return
+            if "application-detail" in self.page.url.lower():
+                break
+            self.page.wait_for_timeout(1000)
+
+        self.take_screenshot("09_application_detail_reached")
+        self.report(
+            "APPLICATION_DETAIL",
+            "SUCCESS: Reached Appointment Details page! Now filling Centre, Category, and Sub-Category..."
+        )
+
+        if sys.platform == "win32" and not self.cfg.HEADLESS:
+            bring_window_to_front_win32(self.page)
+
+        # Fill Step 1
+        self.fill_appointment_details(
+            centre=self.cfg.TARGET_CITY,
+            category=self.cfg.VISA_CATEGORY,
+            sub_category=getattr(self.cfg, "VISA_SUB_CATEGORY", "Business Visa")
+        )
+
+        if self.check_pause_and_stop():
+            return
+
+        self._fill_your_details_and_forward()
+
+    def _fill_your_details_and_forward(self):
+        """Handle Step 2 (Your Details) and forward to Slot Booking."""
+        if not self.page or self.check_pause_and_stop():
+            return
+
+        self.page.wait_for_timeout(2500)
+        cur_url = self.page.url.lower()
+        is_step2 = "your-details" in cur_url or "applicant" in cur_url or self.page.locator('.step-circle:has-text("2"), [class*="step"]:has-text("Your Details"), text="Your Details"').count() > 0
+
+        if is_step2:
+            self.report("YOUR_DETAILS", f"Reached Step 2 (Your Details)! Filling information for {len(self.cfg.APPLICANTS_LIST)} applicant(s)...")
+            self.fill_your_details(self.cfg.APPLICANTS_LIST)
+            if self.check_pause_and_stop():
+                return
+            self._book_slot_and_forward()
+        else:
+            self.report("COMPLETED", "SUCCESS: Appointment Details processed! Real browser window held open.")
+            if sys.platform == "win32" and not self.cfg.HEADLESS:
+                bring_window_to_front_win32(self.page)
+
+    def _book_slot_and_forward(self):
+        """Handle Step 3 (Calendar Slot Booking) and forward to Services/Payment."""
+        if not self.page or self.check_pause_and_stop():
+            return
+
+        self.report("BOOK_APPOINTMENT", "Waiting for Step 3 (Appointment Calendar) to load...")
+        step3_deadline = time.monotonic() + 25
+        is_step3 = False
+        while time.monotonic() < step3_deadline:
+            if self.check_pause_and_stop():
+                return
+            if self.page.locator('mat-calendar, .mat-calendar').count() > 0:
+                is_step3 = True
+                break
+            if self.page.locator('.step-circle.active:has-text("3"), [class*="step"]:has-text("Book Appointment").active').count() > 0:
+                is_step3 = True
+                break
+            if self.page.locator('text="Select date", text="Choose appointment", text="Earliest available slot"').count() > 0:
+                is_step3 = True
+                break
+            self.page.wait_for_timeout(1000)
+
+        if is_step3:
+            self.report("BOOK_APPOINTMENT", "Reached Step 3 (Book Appointment)! Selecting available appointment slot...")
+            slot_ok = self.select_appointment_slot()
+            if slot_ok:
+                self.handle_services_and_payment()
+            else:
+                self.report("COMPLETED", "Slot search completed. Real browser window held open for review.")
+                if sys.platform == "win32" and not self.cfg.HEADLESS:
+                    bring_window_to_front_win32(self.page)
+        else:
+            self.report("COMPLETED", "SUCCESS: Booking flow executed! Real browser window held open for review.")
+            if sys.platform == "win32" and not self.cfg.HEADLESS:
+                bring_window_to_front_win32(self.page)
+
+    def resume_from_current_page(self):
+        """Intelligently inspect current URL and DOM, resuming automation from operator's current location."""
+        if not self.page:
+            return
+        cur_url = self.page.url.lower()
+        self.report("RESUMING", f"Inspecting current page: {self.page.url}")
+
+        if "dashboard" in cur_url and "application-detail" not in cur_url:
+            self.report("DASHBOARD", "Resumed on Dashboard. Initiating 'Start New Booking'...")
+            self._click_start_new_booking()
+            self._fill_application_detail_and_forward()
+        elif "application-detail" in cur_url:
+            self.report("APPLICATION_DETAIL", "Resumed on Application Details (Step 1)...")
+            self._fill_application_detail_and_forward()
+        elif "your-details" in cur_url or "applicant" in cur_url or self.page.locator('.step-circle:has-text("2"), [class*="step"]:has-text("Your Details")').count() > 0:
+            self.report("YOUR_DETAILS", "Resumed on Your Details (Step 2)...")
+            self._fill_your_details_and_forward()
+        elif self.page.locator('mat-calendar, .mat-calendar').count() > 0 or "appointment" in cur_url:
+            self.report("BOOK_APPOINTMENT", "Resumed on Slot Booking Calendar (Step 3)...")
+            self._book_slot_and_forward()
+        elif self._is_on_otp_screen():
+            self.report("OTP", "Resumed on OTP screen. Waiting for OTP completion...")
+        elif "login" in cur_url:
+            self.report("LOGIN", "Resumed on Login page.")
+        else:
+            self.report("NAVIGATION", "Resuming workflow...")
+            self._fill_application_detail_and_forward()
 
     def handle_services_and_payment(self) -> bool:
         """Handle Step 4 (Services) and Step 5 (Review & Payment Handover).

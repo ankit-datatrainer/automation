@@ -328,6 +328,15 @@
     </div>
 
     <div class="nav-actions">
+      <button class="btn-action" id="btnLivePause" onclick="pauseAutomation()" style="background:#eab308; color:#000; border-color:#eab308; font-weight:700;" title="Pause automation and take over in real browser">
+        <span>⏸️ Pause / Takeover</span>
+      </button>
+      <button class="btn-action" id="btnLiveResume" onclick="resumeAutomation()" style="display:none; background:#10b981; color:#fff; border-color:#10b981; font-weight:700;" title="Resume automation from current stage">
+        <span>▶️ Resume Automation</span>
+      </button>
+      <button class="btn-action" id="btnLiveStop" onclick="stopAutomation()" style="background:#ef4444; color:#fff; border-color:#ef4444; font-weight:700;" title="Stop session">
+        <span>⏹️ Stop</span>
+      </button>
       <button class="btn-action" onclick="bringToFront()" style="background:#6366f1; color:#fff; border-color:#6366f1; font-weight:700;" title="Bring active browser window directly to front on desktop">
         <span>🖥️ Show Real Browser</span>
       </button>
@@ -349,15 +358,26 @@
     </div>
   </nav>
 
-  <!-- Live Desktop Browser Notice -->
-  <div style="background: linear-gradient(90deg, rgba(99,102,241,0.22), rgba(6,182,212,0.18)); border-bottom: 1px solid rgba(99,102,241,0.35); padding: 0.65rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; font-size: 0.85rem; color: #e0e7ff; flex-wrap: wrap;">
-    <div style="display: flex; align-items: center; gap: 0.6rem;">
-      <span style="font-size: 1.25rem;">⚡</span>
-      <span><strong>Live Desktop Window Active:</strong> The real browser is running on your desktop. You can directly view clicks, add steps, enter OTP, and complete payment in the real browser.</span>
+  <!-- Interactive Operator Banner & Manual OTP Entry Bar -->
+  <div id="operatorBanner" style="background: linear-gradient(90deg, rgba(99,102,241,0.22), rgba(6,182,212,0.18)); border-bottom: 1px solid rgba(99,102,241,0.35); padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; font-size: 0.85rem; color: #e0e7ff; flex-wrap: wrap;">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <span style="font-size: 1.35rem;" id="bannerIcon">⚡</span>
+      <span id="bannerText"><strong>Live Desktop Window Active:</strong> The real browser is running on your desktop. You can pause at any time, take over in the real browser, enter OTP, and click Resume.</span>
     </div>
-    <button onclick="bringToFront()" style="background:#4f46e5; border:none; color:#fff; padding:0.35rem 0.85rem; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.8rem; box-shadow:0 2px 10px rgba(79,70,229,0.4);">
-      🖥️ Bring Browser Front
-    </button>
+
+    <!-- Interactive OTP Submission Bar -->
+    <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+      <div id="otpInputContainer" style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.5); padding: 3px 8px; border-radius: 8px; border: 1px solid rgba(249, 115, 22, 0.45);">
+        <span style="color:#f97316; font-size:0.85rem;">🔑 OTP:</span>
+        <input type="text" id="otpCodeInput" placeholder="Enter OTP" maxlength="8" style="background:#0f172a; border:1px solid #475569; color:#fff; border-radius:6px; padding:4px 8px; font-family:'JetBrains Mono',monospace; font-size:0.85rem; font-weight:700; width:110px;" onkeydown="if(event.key==='Enter') submitManualOtp()">
+        <button onclick="submitManualOtp()" id="btnSubmitOtp" style="background:#f97316; border:none; color:#fff; padding:4px 10px; border-radius:6px; font-weight:700; font-size:0.8rem; cursor:pointer;">
+          Submit to Browser
+        </button>
+      </div>
+      <button onclick="bringToFront()" style="background:#4f46e5; border:none; color:#fff; padding:0.4rem 0.9rem; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.8rem; box-shadow:0 2px 10px rgba(79,70,229,0.4);">
+        🖥️ Bring Browser Front
+      </button>
+    </div>
   </div>
 
   <!-- Live Stream Container -->
@@ -412,16 +432,132 @@
         const res = await fetch("/api/status");
         const data = await res.json();
         if (data.state) {
-          statusLabel.innerText = data.state.status || "IDLE";
-          stepLabel.innerText = data.state.current_step || "NONE";
+          const st = data.state.status || "IDLE";
+          const step = data.state.current_step || "NONE";
+          statusLabel.innerText = st;
+          stepLabel.innerText = step;
+          
+          if (data.state.active_url) {
+            document.getElementById("currentUrl").innerText = data.state.active_url;
+          }
+
           const pill = document.getElementById("livePill");
-          if (data.state.status === "RUNNING") {
+          const btnPause = document.getElementById("btnLivePause");
+          const btnResume = document.getElementById("btnLiveResume");
+          const banner = document.getElementById("operatorBanner");
+          const bannerText = document.getElementById("bannerText");
+          const bannerIcon = document.getElementById("bannerIcon");
+          const otpBox = document.getElementById("otpInputContainer");
+
+          if (st === "RUNNING") {
             pill.className = "live-status-pill";
+            pill.style.background = "rgba(239, 68, 68, 0.15)";
+            pill.style.borderColor = "rgba(239, 68, 68, 0.35)";
+            pill.style.color = "#f87171";
+            btnPause.style.display = "inline-flex";
+            btnResume.style.display = "none";
+            banner.style.background = "linear-gradient(90deg, rgba(99,102,241,0.22), rgba(6,182,212,0.18))";
+            banner.style.borderBottomColor = "rgba(99,102,241,0.35)";
+            bannerIcon.innerText = "⚡";
+            bannerText.innerHTML = "<strong>Live Desktop Window Active:</strong> Real browser is running. You can click <strong>Pause</strong> at any time to take manual control, then click <strong>Resume</strong>.";
+          } else if (st === "PAUSED") {
+            pill.className = "live-status-pill";
+            pill.style.background = "rgba(234, 179, 8, 0.2)";
+            pill.style.borderColor = "rgba(234, 179, 8, 0.5)";
+            pill.style.color = "#facc15";
+            btnPause.style.display = "none";
+            btnResume.style.display = "inline-flex";
+            banner.style.background = "linear-gradient(90deg, rgba(234, 179, 8, 0.28), rgba(249, 115, 22, 0.22))";
+            banner.style.borderBottomColor = "rgba(234, 179, 8, 0.6)";
+            bannerIcon.innerText = "⏸️";
+            bannerText.innerHTML = "<strong>PAUSED FOR OPERATOR TAKEOVER:</strong> The real browser window is active on your screen. Complete your manual action (OTP, CAPTCHA, or filling), then click <strong>▶️ Resume Automation</strong>.";
           } else {
             pill.className = "live-status-pill idle";
+            btnPause.style.display = "none";
+            btnResume.style.display = "none";
+          }
+
+          // Highlight OTP box if on OTP step or flag set
+          if (step === "OTP" || data.state.is_otp_prompt) {
+            otpBox.style.border = "2px solid #f97316";
+            otpBox.style.boxShadow = "0 0 15px rgba(249, 115, 22, 0.4)";
+          } else {
+            otpBox.style.border = "1px solid rgba(249, 115, 22, 0.45)";
+            otpBox.style.boxShadow = "none";
           }
         }
       } catch (e) {}
+    }
+
+    async function pauseAutomation() {
+      try {
+        const res = await fetch("/api/pause", { method: "POST" });
+        const d = await res.json();
+        if (d.success) {
+          syncStatus();
+        } else {
+          alert(d.message);
+        }
+      } catch (e) {
+        alert("Network error: " + e);
+      }
+    }
+
+    async function resumeAutomation() {
+      try {
+        const res = await fetch("/api/resume", { method: "POST" });
+        const d = await res.json();
+        if (d.success) {
+          syncStatus();
+        } else {
+          alert(d.message);
+        }
+      } catch (e) {
+        alert("Network error: " + e);
+      }
+    }
+
+    async function submitManualOtp() {
+      const input = document.getElementById("otpCodeInput");
+      const code = (input.value || "").trim();
+      if (!code) {
+        alert("Please enter the OTP code first.");
+        input.focus();
+        return;
+      }
+      const btn = document.getElementById("btnSubmitOtp");
+      btn.disabled = true;
+      btn.innerText = "Submitting...";
+      try {
+        const res = await fetch("/api/submit_otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ otp: code })
+        });
+        const d = await res.json();
+        if (d.success) {
+          input.value = "";
+          fetchNextFrame();
+          syncStatus();
+        } else {
+          alert(d.message);
+        }
+      } catch (e) {
+        alert("Failed to submit OTP: " + e);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Submit to Browser";
+      }
+    }
+
+    async function stopAutomation() {
+      if (!confirm("Are you sure you want to stop the automation session?")) return;
+      try {
+        await fetch("/api/stop", { method: "POST" });
+        syncStatus();
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     function refreshNow() {
@@ -472,7 +608,7 @@
       fetchNextFrame();
       syncStatus();
       pollInterval = setInterval(fetchNextFrame, 800);
-      setInterval(syncStatus, 2500);
+      setInterval(syncStatus, 1500);
     });
   </script>
 </body>

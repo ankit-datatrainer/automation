@@ -64,11 +64,30 @@ def find_browser_executable(preferred: str = "brave") -> Path:
     return None
 
 
+def attach_interactive_desktop():
+    """Ensure the calling thread is attached to the interactive Windows desktop (WinSta0\\Default)."""
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        winsta0 = user32.OpenWindowStationW("WinSta0", False, 0x037F)
+        if winsta0:
+            user32.SetProcessWindowStation(winsta0)
+            desk = user32.OpenDesktopW("Default", 0, False, 0x01FF)
+            if desk:
+                user32.SetThreadDesktop(desk)
+                return desk
+    except Exception as e:
+        log.debug(f"attach_interactive_desktop note: {e}")
+    return None
+
+
 def bring_browser_to_front(page: Optional[Page] = None):
     """Bring the REAL active VFS browser window directly in front of the user on Windows desktop.
     
     Restores the window if minimized, maximizes it, pushes it to top of Z-order,
-    and sets focus so the user can directly see actions, type details, or make payments.
+    and sets focus so the operator can directly view clicks, enter OTP, fill forms, or make payments.
     Explicitly ignores the 4140 Flask Control Dashboard tab.
     """
     global _LAST_BROWSER_HWND
@@ -80,24 +99,22 @@ def bring_browser_to_front(page: Optional[Page] = None):
         user32 = ctypes.windll.user32
         kernel32 = ctypes.windll.kernel32
 
-        # 1. First trigger Playwright's native bring_to_front
+        # 1. Attach thread to user's interactive desktop WinSta0\Default
+        attach_interactive_desktop()
+
+        # 2. Tag page title if page object is available so it is 100% uniquely identifiable
         if page:
             try:
                 page.bring_to_front()
+                page.evaluate("() => { window.__vfs_automation_active = true; if (!document.title.includes('VFS_SESSION')) { document.title = 'VFS_SESSION - ' + (document.title || 'VFS Global'); } }")
             except Exception:
                 pass
-
-        # 2. Allow foreground window changes
-        h_desk = user32.OpenInputDesktop(0, False, 0x01FF)
-        if h_desk:
-            user32.SetThreadDesktop(h_desk)
 
         user32.AllowSetForegroundWindow(-1)
 
         vfs_targets = []
 
         def callback(hwnd, extra):
-            # We look for visible or minimized top-level windows
             if user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
                 length = user32.GetWindowTextLengthW(hwnd)
                 if length > 0:
@@ -105,34 +122,37 @@ def bring_browser_to_front(page: Optional[Page] = None):
                     user32.GetWindowTextW(hwnd, buf, length + 1)
                     title = buf.value.lower()
 
-                    # Check window class name (Chromium is always Chrome_WidgetWin_1)
                     class_buf = ctypes.create_unicode_buffer(256)
                     user32.GetClassNameW(hwnd, class_buf, 256)
-                    class_name = class_buf.value
+                    class_name = class_buf.value.lower()
 
                     # NEVER match the Control Dashboard window!
                     if any(k in title for k in ["4140", "automation suite", "live controller", "localhost:"]):
                         return True
 
-                    is_chromium = ("chrome_widgetwin" in class_name.lower())
+                    is_chromium = ("chrome_widgetwin" in class_name)
 
-                    # Target VFS Global browser window
-                    if any(k in title for k in [
+                    # Priority 0: Exact session tag
+                    if "vfs_session" in title:
+                        vfs_targets.append((hwnd, 0))
+                    # Priority 1: Direct VFS Global URL or page title
+                    elif any(k in title for k in [
                         "visa.vfsglobal", "vfs.global", "vfs global", "welcome to vfs",
                         "book an appointment", "bulgaria", "application-detail",
                         "your details", "appointment-detail", "service"
                     ]):
-                        vfs_targets.append((hwnd, 1))  # Highest priority
+                        vfs_targets.append((hwnd, 1))
+                    # Priority 2: Chromium window with auth/appointment titles
                     elif is_chromium and any(k in title for k in ["vfs", "appointment", "visa", "sign in", "login"]):
                         vfs_targets.append((hwnd, 2))
+                    # Priority 3: Chromium browser window running separate profile
                     elif is_chromium and any(k in title for k in ["brave", "chrome"]):
-                        # Chromium window running separate profile
                         vfs_targets.append((hwnd, 3))
                     elif "vfs" in title:
                         vfs_targets.append((hwnd, 4))
             return True
 
-        WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+        WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
         user32.EnumWindows(WNDENUMPROC(callback), 0)
 
         # Sort by priority
@@ -146,15 +166,29 @@ def bring_browser_to_front(page: Optional[Page] = None):
             target_hwnd = _LAST_BROWSER_HWND
 
         if target_hwnd:
-            # 1. Un-minimize if iconic
+            # 1. Un-minimize if iconic (SW_RESTORE = 9)
             if user32.IsIconic(target_hwnd):
-                user32.ShowWindow(target_hwnd, 9)  # SW_RESTORE
+                user32.ShowWindow(target_hwnd, 9)
                 time.sleep(0.05)
 
-            # 2. Maximize
-            user32.ShowWindow(target_hwnd, 3)  # SW_MAXIMIZE
+            # 2. Maximize window (SW_MAXIMIZE = 3)
+            user32.ShowWindow(target_hwnd, 3)
 
-            # 3. Force window to top of Z-order
+            # 3. SwitchToThisWindow forces switch across modern Windows 11 virtual desktops & apps
+            try:
+                user32.SwitchToThisWindow(target_hwnd, True)
+            except Exception:
+                pass
+
+            # 4. Use WScript.Shell AppActivate (bypasses Windows 11 foreground lock)
+            try:
+                import win32com.client
+                wscript = win32com.client.Dispatch("WScript.Shell")
+                wscript.AppActivate(target_hwnd)
+            except Exception:
+                pass
+
+            # 5. Topmost toggle to guarantee Z-order elevation over other windows
             HWND_TOPMOST = -1
             HWND_NOTOPMOST = -2
             SWP_NOMOVE = 0x0002
@@ -164,7 +198,7 @@ def bring_browser_to_front(page: Optional[Page] = None):
             user32.SetWindowPos(target_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
             user32.SetWindowPos(target_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
 
-            # 4. Attach thread input to bypass Windows LockSetForegroundWindow
+            # 6. Attach thread input and bring to top
             fore_hwnd = user32.GetForegroundWindow()
             fore_thread = user32.GetWindowThreadProcessId(fore_hwnd, None)
             cur_thread = kernel32.GetCurrentThreadId()
@@ -178,9 +212,7 @@ def bring_browser_to_front(page: Optional[Page] = None):
                 user32.BringWindowToTop(target_hwnd)
                 user32.SetForegroundWindow(target_hwnd)
 
-            # 5. Set focus
-            user32.keybd_event(0x12, 0, 0, 0)
-            user32.keybd_event(0x12, 0, 2, 0)
+            # 7. Focus window
             user32.SetFocus(target_hwnd)
             log.info(f"Brought real browser window (HWND={target_hwnd}) to front and maximized.")
     except Exception as e:

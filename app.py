@@ -147,6 +147,11 @@ def push_log(step: str, message: str):
         state["message"] = message
         state["finished_at"] = timestamp
         state["last_update"] = time.time()
+    elif step == "PAUSED":
+        state["current_step"] = step
+        state["status"] = "PAUSED"
+        state["message"] = message
+        state["last_update"] = time.time()
     elif step in ("STOPPED", "STOPPING"):
         state["status"] = "STOPPED"
         state["message"] = message
@@ -598,8 +603,18 @@ def user_test_telegram():
 
 @app.route("/api/status", methods=["GET"])
 def get_status():
+    global active_automation
+    is_paused = bool(active_automation.is_paused) if active_automation else False
+    is_otp_prompt = bool(active_automation.is_otp_prompt) if active_automation else False
+    active_url = str(active_automation.page.url) if (active_automation and active_automation.page) else ""
+
     return jsonify({
-        "state": state,
+        "state": {
+            **state,
+            "is_paused": is_paused,
+            "is_otp_prompt": is_otp_prompt,
+            "active_url": active_url,
+        },
         "recent_logs": recent_logs[-50:],
         "target": {
             "city": cfg.TARGET_CITY,
@@ -820,12 +835,61 @@ def start_automation():
     return jsonify({"success": True, "message": "Automation started successfully. Real browser window is launching on your screen."})
 
 
+@app.route("/api/pause", methods=["POST"])
+@login_required
+def pause_automation():
+    """Pause the running automation session and bring the real browser window in front."""
+    global active_automation
+    if active_automation and state["status"] in ("RUNNING", "STARTING"):
+        active_automation.pause()
+        state["status"] = "PAUSED"
+        state["message"] = "Automation paused. Real browser window active on desktop for manual control."
+        push_log("PAUSED", state["message"])
+        return jsonify({"success": True, "message": "Automation paused. Real browser window brought to front."})
+    return jsonify({"success": False, "message": "Automation is not currently running."}), 400
+
+
+@app.route("/api/resume", methods=["POST"])
+@login_required
+def resume_automation():
+    """Resume the paused automation session from current browser position."""
+    global active_automation
+    if active_automation:
+        active_automation.resume()
+        state["status"] = "RUNNING"
+        state["message"] = "Automation resumed. Resuming booking flow..."
+        push_log("RUNNING", state["message"])
+        return jsonify({"success": True, "message": "Automation resumed. Picking up from current browser stage."})
+    return jsonify({"success": False, "message": "No active automation session to resume."}), 400
+
+
+@app.route("/api/submit_otp", methods=["POST"])
+@login_required
+def submit_otp_api():
+    """Submit OTP code entered by the operator directly into the real browser."""
+    global active_automation
+    data = request.get_json(force=True, silent=True) or {}
+    otp = str(data.get("otp", "")).strip()
+    if not otp:
+        return jsonify({"success": False, "message": "OTP code cannot be empty."}), 400
+
+    if not active_automation or not active_automation.page:
+        return jsonify({"success": False, "message": "No active browser session found to submit OTP to."}), 400
+
+    ok = active_automation.submit_manual_otp(otp)
+    if ok:
+        push_log("OTP", f"Operator submitted OTP {otp} to browser.")
+        return jsonify({"success": True, "message": f"OTP {otp} submitted to browser."})
+    return jsonify({"success": False, "message": "Failed submitting OTP into browser. Please enter directly in the real browser window."}), 500
+
+
 @app.route("/api/stop", methods=["POST"])
 @login_required
 def stop_automation():
     global active_automation
     if active_automation:
         active_automation.stop_requested = True
+        active_automation.is_paused = False  # Unblock pause wait loop so it cleanly exits
         push_log("STOPPING", "Stopping automation session...")
     state["status"] = "STOPPED"
     return jsonify({"success": True, "message": "Automation stop requested."})
