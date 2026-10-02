@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VFS Global Automation — Crystal Clear Live View</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="alternate icon" href="{{ url_for('static', filename='favicon.svg') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -326,6 +328,9 @@
     </div>
 
     <div class="nav-actions">
+      <button class="btn-action" onclick="bringToFront()" style="background:#6366f1; color:#fff; border-color:#6366f1; font-weight:700;" title="Bring active browser window directly to front on desktop">
+        <span>🖥️ Show Real Browser</span>
+      </button>
       <button class="btn-action" onclick="refreshNow()" title="Force immediate frame refresh">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
@@ -343,6 +348,17 @@
       </a>
     </div>
   </nav>
+
+  <!-- Live Desktop Browser Notice -->
+  <div style="background: linear-gradient(90deg, rgba(99,102,241,0.22), rgba(6,182,212,0.18)); border-bottom: 1px solid rgba(99,102,241,0.35); padding: 0.65rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; font-size: 0.85rem; color: #e0e7ff; flex-wrap: wrap;">
+    <div style="display: flex; align-items: center; gap: 0.6rem;">
+      <span style="font-size: 1.25rem;">⚡</span>
+      <span><strong>Live Desktop Window Active:</strong> The real browser is running on your desktop. You can directly view clicks, add steps, enter OTP, and complete payment in the real browser.</span>
+    </div>
+    <button onclick="bringToFront()" style="background:#4f46e5; border:none; color:#fff; padding:0.35rem 0.85rem; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.8rem; box-shadow:0 2px 10px rgba(79,70,229,0.4);">
+      🖥️ Bring Browser Front
+    </button>
+  </div>
 
   <!-- Live Stream Container -->
   <main class="stream-container">
@@ -440,6 +456,14 @@
         document.documentElement.requestFullscreen().catch(err => {});
       } else {
         document.exitFullscreen().catch(err => {});
+      }
+    }
+
+    async function bringToFront() {
+      try {
+        await fetch("/api/bring_to_front", { method: "POST" });
+      } catch (e) {
+        console.error(e);
       }
     }
 

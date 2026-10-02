@@ -1,0 +1,1901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Super Admin Center | VFS Global Automation</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="alternate icon" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    /* Admin Portal Specific Theme Overrides */
+    .admin-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    .admin-navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 1rem 1.75rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .admin-brand {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .admin-logo {
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      border-radius: 12px;
+    }
+
+    .admin-title-wrap h1 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .crown-icon {
+      color: #f59e0b;
+    }
+
+    .admin-subtitle {
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+
+    .admin-nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .btn-portal-back {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #e2e8f0;
+      padding: 0.55rem 1rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-portal-back:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    .admin-user-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 0.4rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #c7d2fe;
+    }
+
+    .admin-avatar {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #6366f1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      color: #fff;
+      font-weight: 800;
+    }
+
+    .btn-logout {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+      padding: 0.5rem 0.9rem;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+
+    .btn-logout:hover {
+      background: rgba(239, 68, 68, 0.25);
+      color: #fff;
+    }
+
+    /* KPI Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .kpi-card {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 16px;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    .kpi-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+    }
+
+    .kpi-icon.purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+    .kpi-icon.blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .kpi-icon.cyan { background: rgba(6, 182, 212, 0.15); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.3); }
+    .kpi-icon.emerald { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+
+    .kpi-info {
+      flex: 1;
+    }
+
+    .kpi-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .kpi-value {
+      font-size: 1.85rem;
+      font-weight: 800;
+      color: #f8fafc;
+      line-height: 1.2;
+      margin: 0.2rem 0;
+    }
+
+    .kpi-meta {
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+
+    /* Admin Tabs */
+    .admin-tabs {
+      display: flex;
+      gap: 0.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 1.75rem;
+      padding-bottom: 0.5rem;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      padding: 0.65rem 1.25rem;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.15s ease;
+    }
+
+    .tab-btn:hover {
+      color: #f8fafc;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    /* Section Header within Tabs */
+    .section-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .section-title h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .section-title p {
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+
+    /* Tables */
+    .admin-card {
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+
+    .table-responsive {
+      overflow-x: auto;
+      width: 100%;
+    }
+
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+
+    .admin-table th {
+      padding: 0.85rem 1rem;
+      background: rgba(30, 41, 59, 0.5);
+      color: #94a3b8;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .admin-table td {
+      padding: 0.95rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: #e2e8f0;
+      vertical-align: middle;
+    }
+
+    .admin-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Pills & Badges */
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .role-badge.super_admin {
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid rgba(168, 85, 247, 0.35);
+      color: #d8b4fe;
+    }
+
+    .role-badge.user {
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      color: #93c5fd;
+    }
+
+    .status-badge-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .status-badge-inline.active {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #6ee7b7;
+    }
+
+    .status-badge-inline.inactive {
+      background: rgba(148, 163, 184, 0.15);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      color: #cbd5e1;
+    }
+
+    .action-group {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .btn-act {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #cbd5e1;
+      padding: 0.35rem 0.65rem;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: all 0.15s ease;
+    }
+
+    .btn-act:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+
+    .btn-act.danger {
+      color: #fca5a5;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-act.danger:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fee2e2;
+    }
+
+    /* Modal */
+    .admin-modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .admin-modal {
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+      overflow: hidden;
+      animation: modalFadeIn 0.2s ease-out;
+    }
+
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .admin-modal-header {
+      padding: 1.25rem 1.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .admin-modal-header h3 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .admin-modal-close {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.5rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .admin-modal-body {
+      padding: 1.75rem;
+    }
+
+    .admin-modal-footer {
+      padding: 1.25rem 1.75rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      background: rgba(15, 23, 42, 0.5);
+    }
+
+    /* ============================================
+       ADMIN RESPONSIVE: LARGE TABLET (≤1024px)
+       ============================================ */
+    @media (max-width: 1024px) {
+      .admin-container { padding: 1rem; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+      .admin-navbar { padding: 0.85rem 1.25rem; }
+      .admin-title-wrap h1 { font-size: 1.15rem; }
+      .admin-subtitle { font-size: 0.72rem; }
+      .kpi-value { font-size: 1.5rem; }
+    }
+
+    /* ============================================
+       ADMIN RESPONSIVE: TABLET / PORTRAIT (≤768px)
+       ============================================ */
+    @media (max-width: 768px) {
+      .admin-container { padding: 0.65rem; }
+
+      .admin-navbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.85rem;
+        padding: 0.85rem 1rem;
+        border-radius: 12px;
+        margin-bottom: 1.25rem;
+      }
+      .admin-brand { gap: 0.7rem; }
+      .admin-logo { width: 36px; height: 36px; border-radius: 10px; }
+      .admin-logo img { width: 24px !important; height: 24px !important; }
+      .admin-title-wrap h1 { font-size: 1.05rem; }
+      .admin-subtitle { font-size: 0.7rem; }
+
+      .admin-nav-actions {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+      .btn-portal-back { padding: 0.45rem 0.8rem; font-size: 0.78rem; border-radius: 8px; }
+      .admin-user-pill {
+        padding: 0.35rem 0.7rem;
+        font-size: 0.75rem;
+        gap: 0.4rem;
+      }
+      .admin-avatar { width: 22px; height: 22px; font-size: 0.65rem; }
+      .btn-logout { padding: 0.4rem 0.7rem; font-size: 0.78rem; }
+
+      .kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+      }
+      .kpi-card { padding: 1rem; gap: 0.85rem; border-radius: 12px; }
+      .kpi-icon { width: 40px; height: 40px; font-size: 1.15rem; border-radius: 10px; }
+      .kpi-value { font-size: 1.4rem; }
+      .kpi-label { font-size: 0.7rem; }
+      .kpi-meta { font-size: 0.68rem; }
+
+      .admin-tabs {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        gap: 0.35rem;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 0.4rem;
+        margin-bottom: 1.25rem;
+      }
+      .admin-tabs .tab-btn {
+        flex-shrink: 0;
+        padding: 0.5rem 0.85rem;
+        font-size: 0.82rem;
+        white-space: nowrap;
+        border-radius: 8px;
+      }
+
+      .section-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.65rem;
+      }
+      .section-bar .btn { width: 100%; justify-content: center; }
+
+      .admin-card { padding: 1rem; border-radius: 12px; margin-bottom: 1.25rem; }
+
+      .admin-table th, .admin-table td {
+        padding: 0.6rem 0.65rem;
+        font-size: 0.78rem;
+      }
+      .admin-table th { font-size: 0.68rem; }
+
+      .action-group {
+        flex-wrap: wrap;
+        gap: 0.3rem;
+      }
+
+      .admin-modal { max-width: 95vw; border-radius: 14px; }
+      .admin-modal-header { padding: 1rem 1.25rem; }
+      .admin-modal-header h3 { font-size: 1.05rem; }
+      .admin-modal-body { padding: 1.25rem; }
+      .admin-modal-footer { padding: 1rem 1.25rem; }
+    }
+
+    /* ============================================
+       ADMIN RESPONSIVE: SMALL MOBILE (≤480px)
+       ============================================ */
+    @media (max-width: 480px) {
+      .admin-container { padding: 0.5rem; }
+
+      .admin-navbar { padding: 0.65rem 0.75rem; border-radius: 10px; margin-bottom: 1rem; }
+      .admin-title-wrap h1 { font-size: 0.92rem; gap: 0.3rem; }
+      .admin-subtitle { display: none; }
+
+      .admin-nav-actions {
+        justify-content: space-between;
+      }
+      .btn-portal-back span { display: none; }
+      .btn-portal-back { padding: 0.45rem 0.6rem; }
+
+      .admin-user-pill .role-badge { display: none; }
+      .admin-user-pill span:not(.admin-avatar) { font-size: 0.72rem; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+      .kpi-grid { grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 1rem; }
+      .kpi-card { padding: 0.75rem; gap: 0.6rem; }
+      .kpi-icon { width: 34px; height: 34px; font-size: 1rem; border-radius: 8px; }
+      .kpi-value { font-size: 1.15rem; }
+      .kpi-label { font-size: 0.65rem; }
+      .kpi-meta { display: none; }
+
+      .admin-tabs .tab-btn { padding: 0.4rem 0.65rem; font-size: 0.75rem; }
+
+      .section-title h2 { font-size: 1.05rem; }
+      .section-title p { font-size: 0.75rem; }
+
+      .admin-card { padding: 0.75rem; border-radius: 10px; }
+
+      .admin-table th, .admin-table td { padding: 0.5rem 0.45rem; font-size: 0.72rem; }
+
+      .btn-act { padding: 0.28rem 0.5rem; font-size: 0.7rem; }
+
+      .admin-modal { max-width: 98vw; border-radius: 12px; }
+      .admin-modal-header { padding: 0.85rem 1rem; }
+      .admin-modal-body { padding: 1rem; }
+      .admin-modal-footer { padding: 0.85rem 1rem; flex-direction: column; }
+      .admin-modal-footer .btn { width: 100%; justify-content: center; }
+    }
+
+    /* Slot Watcher & Category Grid Styles */
+    .status-indicator-pulse {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #10b981;
+      display: inline-block;
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulseGreen 2s infinite;
+    }
+    .status-indicator-pulse.stopped {
+      background: #ef4444;
+      box-shadow: none;
+      animation: none;
+    }
+    @keyframes pulseGreen {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    .slot-cat-item {
+      background: rgba(30, 41, 59, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      transition: border-color 0.2s;
+    }
+    .slot-cat-item.highlight {
+      border: 1px solid rgba(249, 115, 22, 0.55);
+      background: rgba(249, 115, 22, 0.08);
+    }
+    .slot-cat-item .cat-name {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .slot-cat-item .cat-date {
+      font-size: 0.98rem;
+      color: #f8fafc;
+      font-weight: 800;
+    }
+    .slot-cat-item .cat-date.available {
+      color: #4ade80;
+    }
+    .slot-cat-item .cat-date.unavailable {
+      color: #f87171;
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-container">
+    <!-- Navbar -->
+    <header class="admin-navbar">
+      <div class="admin-brand">
+        <div class="admin-logo">
+          <img src="{{ url_for('static', filename='favicon.svg') }}" alt="VFS Icon" width="30" height="30">
+        </div>
+        <div class="admin-title-wrap">
+          <h1>Super Admin Control Center <span class="crown-icon">👑</span></h1>
+          <span class="admin-subtitle">Master User Provisioning & Hostinger Remote Database Authority</span>
+        </div>
+      </div>
+
+      <div class="admin-nav-actions">
+        <a href="/" class="btn-portal-back" title="Go to Automation Controller">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          <span>Main Automation Suite</span>
+        </a>
+
+        <div class="admin-user-pill">
+          <div class="admin-avatar">{{ current_user.username[0] | upper }}</div>
+          <span>{{ current_user.full_name or current_user.username }}</span>
+          <span class="role-badge super_admin">SUPER ADMIN</span>
+        </div>
+
+        <a href="/logout" class="btn-logout">Sign Out</a>
+      </div>
+    </header>
+
+    <!-- Top KPI Grid -->
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icon purple">👥</div>
+        <div class="kpi-info">
+          <div class="kpi-label">System Users</div>
+          <div class="kpi-value" id="kpiUsersCount">--</div>
+          <div class="kpi-meta" id="kpiUsersMeta">Authorized Accounts</div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon blue">📋</div>
+        <div class="kpi-info">
+          <div class="kpi-label">Applicant Profiles</div>
+          <div class="kpi-value" id="kpiApplicantsCount">--</div>
+          <div class="kpi-meta">Stored in Remote MySQL</div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon cyan">🔐</div>
+        <div class="kpi-info">
+          <div class="kpi-label">VFS Accounts</div>
+          <div class="kpi-value" id="kpiAccountsCount">--</div>
+          <div class="kpi-meta">Portal Credentials</div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon emerald">📈</div>
+        <div class="kpi-info">
+          <div class="kpi-label">Booking Logs</div>
+          <div class="kpi-value" id="kpiHistoryCount">--</div>
+          <div class="kpi-meta">Slot & Payment Audits</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Admin Navigation Tabs -->
+    <nav class="admin-tabs">
+      <button class="tab-btn active" onclick="switchAdminTab('users', this)">
+        <span>👤 User Management</span>
+      </button>
+      <button class="tab-btn" onclick="switchAdminTab('watcher', this)">
+        <span>🚨 24/7 Slot Watcher & Telegram</span>
+      </button>
+      <button class="tab-btn" onclick="switchAdminTab('database', this)">
+        <span>🗄️ Remote MySQL Database</span>
+      </button>
+      <button class="tab-btn" onclick="switchAdminTab('vps', this)">
+        <span>🌐 VPS & Server Deployment</span>
+      </button>
+    </nav>
+
+    <!-- TAB 1: USER MANAGEMENT -->
+    <section id="tab-users" class="tab-panel active">
+      <div class="section-bar">
+        <div class="section-title">
+          <h2>Authorized User Accounts</h2>
+          <p>Super Administrators can provision users, manage access, and configure Telegram alert IDs per operator.</p>
+        </div>
+        <button class="btn btn-primary" onclick="openCreateUserModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Create New User</span>
+        </button>
+      </div>
+
+      <div class="admin-card">
+        <div class="table-responsive">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Full Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Telegram Alerts</th>
+                <th>Last Login</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <tr>
+                <td colspan="10" style="text-align:center; padding: 2rem; color: #94a3b8;">Loading user accounts...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: DATABASE INSPECTOR & OPERATIONS -->
+    <section id="tab-database" class="tab-panel">
+      <div class="section-bar">
+        <div class="section-title">
+          <h2>Hostinger Remote MariaDB 11.8 Inspector</h2>
+          <p>Direct view and maintenance tools for <code>srv2203.hstgr.io</code> database <code>u796972987_automation</code>.</p>
+        </div>
+        <div class="action-group">
+          <button class="btn btn-secondary" onclick="testDbConnection()">
+            <span>⚡ Test Connection</span>
+          </button>
+          <button class="btn btn-secondary" onclick="exportDatabaseJson()">
+            <span>📥 Export JSON Backup</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.25rem; flex-wrap:wrap; gap:1rem;">
+          <div style="display:flex; align-items:center; gap:0.75rem;">
+            <label style="font-size:0.85rem; font-weight:600; color:#94a3b8;">SELECT TABLE:</label>
+            <select id="dbTableSelector" class="form-control" style="width: auto; padding: 0.45rem 1rem;" onchange="loadTableData(this.value)">
+              <option value="applicant_profiles">applicant_profiles</option>
+              <option value="booking_history">booking_history</option>
+              <option value="vfs_accounts">vfs_accounts</option>
+              <option value="users">users</option>
+            </select>
+            <button class="btn-act" onclick="loadTableData(document.getElementById('dbTableSelector').value)">🔄 Refresh</button>
+          </div>
+          <button class="btn-act danger" id="btnClearTableBtn" onclick="clearSelectedTable()">🗑️ Clear Table Data</button>
+        </div>
+
+        <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
+          <table class="admin-table" id="dbDataTable">
+            <thead id="dbTableHead"></thead>
+            <tbody id="dbTableBody">
+              <tr>
+                <td style="text-align:center; padding: 2rem; color: #94a3b8;">Select a table to view live data.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: VPS ENVIRONMENT & DEPLOYMENT -->
+    <section id="tab-vps" class="tab-panel">
+      <div class="section-bar">
+        <div class="section-title">
+          <h2>VPS Server & Production Configuration</h2>
+          <p>Run the automation on your remote VPS without touching MySQL configuration.</p>
+        </div>
+      </div>
+
+      <div class="admin-card" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;">
+        <div>
+          <h3 style="color:#fff; margin-bottom:0.75rem; font-size:1.05rem;">🖥️ Server Architecture</h3>
+          <p style="color:#94a3b8; font-size:0.88rem; line-height:1.6; margin-bottom:1rem;">
+            This automation suite is built to run both on your local Windows PC (with visible Brave/Chrome browser window for manual intervention) and on a remote VPS Linux server (using headless mode or virtual display).
+          </p>
+          <ul style="color:#cbd5e1; font-size:0.85rem; line-height:1.8; margin-left:1.25rem;">
+            <li><strong>Remote MySQL:</strong> <code>srv2203.hstgr.io:3306</code> (Centralized DB)</li>
+            <li><strong>Port:</strong> <code>4140</code> (Web Controller & REST API)</li>
+            <li><strong>Authentication:</strong> PBKDF2 HMAC-SHA256 Encrypted</li>
+            <li><strong>Multi-User:</strong> Super Admin role with Operator sandboxing</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 style="color:#fff; margin-bottom:0.75rem; font-size:1.05rem;">🚀 1-Command VPS Deployment</h3>
+          <p style="color:#94a3b8; font-size:0.88rem; margin-bottom:0.75rem;">
+            On your Ubuntu/Debian VPS, clone this directory and run:
+          </p>
+          <pre style="background:#07090e; padding:1rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); font-family:'JetBrains Mono', monospace; font-size:0.8rem; color:#38bdf8; overflow-x:auto;">
+# 1. Install dependencies
+sudo apt-get update && sudo apt-get install -y python3-pip
+pip install -r requirements.txt
+playwright install chromium
+
+# 2. Run service with PM2 or systemd
+pm2 start app.py --name "vfs-suite" --interpreter python3
+pm2 save</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: 24/7 SLOT WATCHER & TELEGRAM / EMAIL ALERTS -->
+    <section id="tab-watcher" class="tab-panel">
+      <div class="section-bar">
+        <div class="section-title">
+          <h2>24/7 Bulgaria Appointment Slot Watcher & Instant Telegram Dispatch</h2>
+          <p>Continuous monitoring of <code>https://visa.vfsglobal.com/ind/en/bgr</code> every 30s. Instant alerts upon available slot for <b>Long Stay D visa</b>.</p>
+        </div>
+        <div class="action-group">
+          <button class="btn btn-primary" id="btnAdminWatcherStart" onclick="startSlotMonitor()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span>Start 24/7 Watcher</span>
+          </button>
+          <button class="btn btn-danger" id="btnAdminWatcherStop" onclick="stopSlotMonitor()" style="display:none;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="6" width="12" height="12"></rect>
+            </svg>
+            <span>Stop Watcher</span>
+          </button>
+          <button class="btn btn-secondary" onclick="checkSlotsNow()">
+            <span>⚡ Check Now</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Watcher Status & Long Stay D Visa Hero Card -->
+      <div class="admin-card" style="border-left: 4px solid #f97316; margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span class="status-indicator-pulse" id="adminWatcherPulse"></span>
+            <div>
+              <h3 style="color: #fff; margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span id="adminWatcherStateLabel">Watcher Status: Checking...</span>
+              </h3>
+              <span style="color: #94a3b8; font-size: 0.8rem;" id="adminWatcherLastCheck">Last check: --</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span class="badge-pill" style="background: rgba(249, 115, 22, 0.15); border: 1px solid rgba(249, 115, 22, 0.4); color: #fb923c;">
+              📍 Centre: <strong id="adminWatcherCentreDisplay">Bulgaria Visa Application Center ,New Delhi</strong>
+            </span>
+            <span class="badge-pill" style="background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); color: #93c5fd;">
+              ⏱️ Interval: <strong>30s</strong>
+            </span>
+          </div>
+        </div>
+
+        <!-- Target Category Highlight Box -->
+        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(249, 115, 22, 0.3); border-radius: 12px; padding: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <span style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: #f97316;">Primary Monitored Category</span>
+            <h4 style="color: #ffffff; font-size: 1.3rem; margin: 0.25rem 0 0.2rem 0;">Long Stay D visa</h4>
+            <p style="color: #94a3b8; font-size: 0.82rem; margin: 0;">Triggers instant Telegram message + screenshot + email notification immediately when an appointment date opens.</p>
+          </div>
+          <div style="text-align: right;">
+            <span class="status-badge-inline" id="adminDVisaBadge" style="font-size: 1rem; padding: 0.5rem 1.25rem; border-radius: 9999px;">
+              Checking...
+            </span>
+          </div>
+        </div>
+
+        <!-- Categories Availability Grid -->
+        <div style="margin-top: 1.5rem;">
+          <h4 style="color: #e2e8f0; font-size: 0.95rem; margin-bottom: 0.75rem; font-weight: 700;">Live Availability Position (From VFS Landing Page):</h4>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.85rem;" id="adminCategoriesGrid">
+            <div class="slot-cat-item">
+              <span class="cat-name">Business</span>
+              <span class="cat-date" id="catDateBusiness">Checking...</span>
+            </div>
+            <div class="slot-cat-item highlight">
+              <span class="cat-name">Long Stay D visa (Monitored)</span>
+              <span class="cat-date" id="catDateDVisa">Checking...</span>
+            </div>
+            <div class="slot-cat-item">
+              <span class="cat-name">Schengen Visa- Less than 90 days</span>
+              <span class="cat-date" id="catDateSchengen">Checking...</span>
+            </div>
+            <div class="slot-cat-item">
+              <span class="cat-name">Seasonal worker</span>
+              <span class="cat-date" id="catDateSeasonal">Checking...</span>
+            </div>
+            <div class="slot-cat-item">
+              <span class="cat-name">Embassy approved interview</span>
+              <span class="cat-date" id="catDateEmbassy">Checking...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Global Telegram & Alert Configuration Form -->
+      <div class="admin-card">
+        <h3 style="color: #fff; font-size: 1.15rem; margin-bottom: 0.5rem;">⚙️ Telegram & Alert System Settings</h3>
+        <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1.5rem;">Configure the Telegram Bot, recipient channels, and the automated 10:00 PM daily summary report.</p>
+
+        <form id="slotSettingsForm" onsubmit="handleSaveSlotSettings(event)">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem;">
+            
+            <!-- Telegram Bot Token -->
+            <div class="form-group">
+              <label class="form-label" style="display: flex; justify-content: space-between;">
+                <span>Telegram Bot Token</span>
+                <a href="https://t.me/BotFather" target="_blank" style="color: #38bdf8; font-size: 0.75rem; text-decoration: none;">Get from @BotFather &rarr;</a>
+              </label>
+              <div style="display: flex; gap: 0.5rem;">
+                <input type="password" id="cfg_telegram_bot_token" class="form-control" placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ">
+                <button type="button" class="btn btn-secondary" onclick="toggleTokenVisibility()" style="padding: 0 0.8rem;" title="Show/Hide">👁️</button>
+              </div>
+              <small style="color: #64748b; font-size: 0.75rem;">Created via @BotFather. Used to send direct slot alerts.</small>
+            </div>
+
+            <!-- Super Admin / Global Telegram Chat ID -->
+            <div class="form-group">
+              <label class="form-label" style="display: flex; justify-content: space-between;">
+                <span>Primary Telegram Chat ID</span>
+                <a href="https://t.me/userinfobot" target="_blank" style="color: #38bdf8; font-size: 0.75rem; text-decoration: none;">Find via @userinfobot &rarr;</a>
+              </label>
+              <div style="display: flex; gap: 0.5rem;">
+                <input type="text" id="cfg_telegram_chat_id" class="form-control" placeholder="e.g. 987654321 or -100123456789">
+                <button type="button" class="btn btn-secondary" onclick="testTelegramPing()" style="white-space: nowrap;">
+                  <span>🔔 Test Ping</span>
+                </button>
+              </div>
+              <small style="color: #64748b; font-size: 0.75rem;">Can be a personal Chat ID or a Telegram Channel / Group ID.</small>
+            </div>
+
+            <!-- Target Centre Selector -->
+            <div class="form-group">
+              <label class="form-label">Visa Application Centre</label>
+              <select id="cfg_target_centre" class="form-control">
+                <option value="Bulgaria Visa Application Center ,New Delhi" selected>Bulgaria Visa Application Center ,New Delhi</option>
+                <option value="Bulgaria Visa Application Center,Mumbai">Bulgaria Visa Application Center,Mumbai</option>
+                <option value="Bulgaria Visa Application Center,Bangalore">Bulgaria Visa Application Center,Bangalore</option>
+                <option value="Bulgaria Visa Application Center,Gurugram">Bulgaria Visa Application Center,Gurugram</option>
+                <option value="Bulgaria Visa Application Centre-Ahmedabad">Bulgaria Visa Application Centre-Ahmedabad</option>
+                <option value="Bulgaria Visa Application Centre-Chandigarh">Bulgaria Visa Application Centre-Chandigarh</option>
+                <option value="Bulgaria Visa Application Centre-Chennai">Bulgaria Visa Application Centre-Chennai</option>
+                <option value="Bulgaria Visa Application Centre-Cochin">Bulgaria Visa Application Centre-Cochin</option>
+                <option value="Bulgaria Visa Application Centre-Goa">Bulgaria Visa Application Centre-Goa</option>
+                <option value="Bulgaria Visa Application Centre-Hyderabad">Bulgaria Visa Application Centre-Hyderabad</option>
+                <option value="Bulgaria Visa Application Centre-Jaipur">Bulgaria Visa Application Centre-Jaipur</option>
+                <option value="Bulgaria Visa Application Centre-Jalandhar">Bulgaria Visa Application Centre-Jalandhar</option>
+                <option value="Bulgaria Visa Application Centre-Kolkata-VAC">Bulgaria Visa Application Centre-Kolkata-VAC</option>
+                <option value="Bulgaria Visa Application Centre-Puducherry">Bulgaria Visa Application Centre-Puducherry</option>
+                <option value="Bulgaria Visa Application Centre-Pune">Bulgaria Visa Application Centre-Pune</option>
+              </select>
+            </div>
+
+            <!-- Target Category -->
+            <div class="form-group">
+              <label class="form-label">Alert Target Category</label>
+              <select id="cfg_target_category" class="form-control">
+                <option value="Long Stay D visa" selected>Long Stay D visa (Recommended)</option>
+                <option value="Business">Business</option>
+                <option value="Schengen Visa- Less than 90 days">Schengen Visa- Less than 90 days</option>
+                <option value="Seasonal worker">Seasonal worker</option>
+                <option value="Embassy approved interview">Embassy approved interview</option>
+              </select>
+            </div>
+
+            <!-- Email Alert Address -->
+            <div class="form-group">
+              <label class="form-label">Notification Email Address</label>
+              <div style="display: flex; gap: 0.5rem;">
+                <input type="email" id="cfg_notify_email" class="form-control" placeholder="e.g. alerts@company.com">
+                <button type="button" class="btn btn-secondary" onclick="testEmailAlert()" style="white-space: nowrap;">
+                  <span>✉️ Test</span>
+                </button>
+              </div>
+              <small style="color: #64748b; font-size: 0.75rem;">Instant email alerts with direct VFS booking links are sent here.</small>
+            </div>
+
+            <!-- Check Frequency & 10 PM Report Time -->
+            <div class="form-group">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div>
+                  <label class="form-label">Interval (Seconds)</label>
+                  <input type="number" id="cfg_check_interval" class="form-control" min="15" max="300" value="30">
+                </div>
+                <div>
+                  <label class="form-label">Daily Report Time</label>
+                  <input type="time" id="cfg_daily_report_time" class="form-control" value="22:00">
+                </div>
+              </div>
+              <small style="color: #64748b; font-size: 0.75rem;">Daily summary is sent at 10:00 PM (22:00) with all category statuses.</small>
+            </div>
+          </div>
+
+          <!-- Toggles -->
+          <div style="display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 1.5rem; padding: 1rem; background: rgba(15,23,42,0.4); border-radius: 10px;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; color: #e2e8f0; font-size: 0.9rem; cursor: pointer;">
+              <input type="checkbox" id="cfg_telegram_enabled" checked style="width: 18px; height: 18px; accent-color: #38bdf8;">
+              <span>Enable Instant Telegram Alerts</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; color: #e2e8f0; font-size: 0.9rem; cursor: pointer;">
+              <input type="checkbox" id="cfg_email_enabled" checked style="width: 18px; height: 18px; accent-color: #f97316;">
+              <span>Enable Instant Email Alerts</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; color: #e2e8f0; font-size: 0.9rem; cursor: pointer;">
+              <input type="checkbox" id="cfg_daily_report_enabled" checked style="width: 18px; height: 18px; accent-color: #10b981;">
+              <span>Enable Daily 10:00 PM Summary Report</span>
+            </label>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+            <button type="submit" class="btn btn-primary" id="btnSaveSlotSettings">
+              💾 Save Alert & Telegram Settings
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Recent Checks History Table -->
+      <div class="admin-card">
+        <div class="section-bar">
+          <div class="section-title">
+            <h3>Recent Slot Checks Audit Log</h3>
+            <p>Real-time records of public landing page checks and notification deliveries.</p>
+          </div>
+          <button class="btn-act" onclick="fetchSlotChecksHistory()">🔄 Refresh History</button>
+        </div>
+
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Checked At</th>
+                <th>Centre</th>
+                <th>Target Category</th>
+                <th>Status / Date</th>
+                <th>Available?</th>
+                <th>Telegram</th>
+                <th>Email</th>
+              </tr>
+            </thead>
+            <tbody id="slotHistoryTableBody">
+              <tr>
+                <td colspan="7" style="text-align: center; padding: 1.5rem; color: #94a3b8;">Loading audit history...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Operator Telegram Configuration Modal -->
+  <div class="admin-modal-backdrop" id="userTelegramModal">
+    <div class="admin-modal">
+      <div class="admin-modal-header">
+        <h3>Operator Telegram & Alert Configuration</h3>
+        <button class="admin-modal-close" onclick="closeUserTelegramModal()">&times;</button>
+      </div>
+      <form onsubmit="handleSaveUserTelegram(event)">
+        <input type="hidden" id="tgUserId">
+        <div class="admin-modal-body">
+          <p style="color:#94a3b8; font-size:0.9rem; margin-bottom:1.25rem;">
+            Assign personal Telegram alerts for operator: <strong id="tgUsernameDisplay" style="color:#38bdf8;"></strong>
+          </p>
+
+          <div class="form-group" style="margin-bottom:1.25rem;">
+            <label class="form-label" style="display:flex; justify-content:space-between;">
+              <span>Telegram Chat ID *</span>
+              <a href="https://t.me/userinfobot" target="_blank" style="color:#38bdf8; font-size:0.75rem; text-decoration:none;">Find via @userinfobot &rarr;</a>
+            </label>
+            <div style="display:flex; gap:0.5rem;">
+              <input type="text" id="tgUserChatId" class="form-control" placeholder="e.g. 123456789">
+              <button type="button" class="btn btn-secondary" onclick="testOperatorTelegramPing()" style="white-space:nowrap;">
+                <span>🔔 Ping</span>
+              </button>
+            </div>
+            <small style="color:#64748b; font-size:0.75rem;">Enter the operator's personal Telegram Chat ID.</small>
+          </div>
+
+          <div style="background:rgba(15,23,42,0.5); padding:1rem; border-radius:10px; margin-bottom:1rem;">
+            <label style="display:flex; align-items:center; gap:0.6rem; color:#e2e8f0; font-size:0.88rem; cursor:pointer; margin-bottom:0.75rem;">
+              <input type="checkbox" id="tgUserNotifEnabled" checked style="width:18px; height:18px; accent-color:#38bdf8;">
+              <span>Send instant Telegram alert when <b>Long Stay D visa</b> is available</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:0.6rem; color:#e2e8f0; font-size:0.88rem; cursor:pointer;">
+              <input type="checkbox" id="emUserNotifEnabled" checked style="width:18px; height:18px; accent-color:#f97316;">
+              <span>Send instant Email alert to operator's email</span>
+            </label>
+          </div>
+        </div>
+        <div class="admin-modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeUserTelegramModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveOperatorTelegram">Save Settings</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create User Modal -->
+  <div class="admin-modal-backdrop" id="createUserModal">
+    <div class="admin-modal">
+      <div class="admin-modal-header">
+        <h3>Create New User Account</h3>
+        <button class="admin-modal-close" onclick="closeCreateUserModal()">&times;</button>
+      </div>
+      <form onsubmit="handleCreateUserSubmit(event)">
+        <div class="admin-modal-body">
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Username *</label>
+            <input type="text" id="newUsername" class="form-control" required placeholder="e.g. operator3">
+          </div>
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Full Name</label>
+            <input type="text" id="newFullName" class="form-control" placeholder="e.g. John Doe">
+          </div>
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Email Address</label>
+            <input type="email" id="newEmail" class="form-control" placeholder="e.g. operator3@vfsautomation.com">
+          </div>
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Password * (min 6 characters)</label>
+            <input type="password" id="newPassword" class="form-control" required placeholder="••••••••••••">
+          </div>
+          <div class="form-group" style="margin-bottom:0.5rem;">
+            <label class="form-label">Account Role *</label>
+            <select id="newRole" class="form-control">
+              <option value="user" selected>Normal User (Automation Operator)</option>
+              <option value="super_admin">Super Administrator (Full Management)</option>
+            </select>
+          </div>
+        </div>
+        <div class="admin-modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeCreateUserModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveUser">Create User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Reset Password Modal -->
+  <div class="admin-modal-backdrop" id="resetPwdModal">
+    <div class="admin-modal">
+      <div class="admin-modal-header">
+        <h3>Reset User Password</h3>
+        <button class="admin-modal-close" onclick="closeResetPwdModal()">&times;</button>
+      </div>
+      <form onsubmit="handleResetPwdSubmit(event)">
+        <input type="hidden" id="resetUserId">
+        <div class="admin-modal-body">
+          <p style="color:#94a3b8; font-size:0.9rem; margin-bottom:1rem;">
+            Resetting password for user: <strong id="resetUsernameDisplay" style="color:#fff;"></strong>
+          </p>
+          <div class="form-group">
+            <label class="form-label">New Password *</label>
+            <input type="password" id="resetNewPassword" class="form-control" required placeholder="Minimum 6 characters">
+          </div>
+        </div>
+        <div class="admin-modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeResetPwdModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Update Password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function switchAdminTab(tabKey, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + tabKey).classList.add('active');
+
+      if (tabKey === 'database') {
+        loadTableData(document.getElementById('dbTableSelector').value);
+      } else if (tabKey === 'watcher') {
+        pollSlotMonitorStatus();
+        loadSlotSettings();
+        fetchSlotChecksHistory();
+      }
+    }
+
+    async function fetchStats() {
+      try {
+        const res = await fetch('/api/admin/db/stats');
+        const data = await res.json();
+        if (data.success && data.stats) {
+          document.getElementById('kpiUsersCount').textContent = data.stats.users || '0';
+          document.getElementById('kpiApplicantsCount').textContent = data.stats.applicant_profiles || '0';
+          document.getElementById('kpiAccountsCount').textContent = data.stats.vfs_accounts || '0';
+          document.getElementById('kpiHistoryCount').textContent = data.stats.booking_history || '0';
+        }
+      } catch (e) {
+        console.error("Error fetching stats:", e);
+      }
+    }
+
+    async function fetchUsers() {
+      try {
+        const res = await fetch('/api/admin/users');
+        const data = await res.json();
+        const tbody = document.getElementById('usersTableBody');
+
+        if (!data.success || !data.users || data.users.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:2rem; color:#94a3b8;">No users found in database.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.users.map(u => {
+          const isSuper = u.role === 'super_admin';
+          const roleClass = isSuper ? 'super_admin' : 'user';
+          const roleLabel = isSuper ? '👑 Super Admin' : '👤 Operator';
+          const statusClass = u.status === 'active' ? 'active' : 'inactive';
+          const statusLabel = u.status === 'active' ? 'Active' : 'Inactive';
+          const toggleAction = u.status === 'active' ? 'Deactivate' : 'Activate';
+
+          const tgDisplay = u.telegram_chat_id 
+            ? `<span style="font-family:'JetBrains Mono'; font-size:0.75rem; color:#38bdf8; background:rgba(56,189,248,0.1); padding:2px 6px; border-radius:6px;">${escapeHtml(u.telegram_chat_id)}</span> ${u.telegram_notifications !== 0 ? '<span title="Instant Telegram alerts active">🔔</span>' : '<span title="Telegram alerts muted">🔕</span>'}`
+            : '<span style="color:#64748b; font-size:0.8rem;">Not configured</span>';
+
+          return `
+            <tr>
+              <td><span style="font-family:'JetBrains Mono'; color:#64748b;">#${u.id}</span></td>
+              <td><strong>${escapeHtml(u.username)}</strong></td>
+              <td>${escapeHtml(u.full_name || '--')}</td>
+              <td><span style="color:#94a3b8;">${escapeHtml(u.email || '--')}</span></td>
+              <td><span class="role-badge ${roleClass}">${roleLabel}</span></td>
+              <td><span class="status-badge-inline ${statusClass}">${statusLabel}</span></td>
+              <td>${tgDisplay}</td>
+              <td><span style="font-size:0.8rem; color:#94a3b8;">${u.last_login ? u.last_login.substring(0, 16) : 'Never'}</span></td>
+              <td><span style="font-size:0.8rem; color:#64748b;">${u.created_at ? u.created_at.substring(0, 10) : '--'}</span></td>
+              <td>
+                <div class="action-group">
+                  <button class="btn-act btn-user-telegram" onclick="openUserTelegramModal(${u.id}, '${escapeHtml(u.username)}', '${escapeHtml(u.telegram_chat_id || '')}', ${u.telegram_notifications !== 0}, ${u.email_notifications !== 0})" title="Configure Telegram for this operator">
+                    📱 Telegram
+                  </button>
+                  <button class="btn-act" onclick="toggleUserStatus(${u.id}, '${u.status}')" title="${toggleAction} Account">
+                    ${u.status === 'active' ? '⏸️ Suspend' : '▶️ Activate'}
+                  </button>
+                  <button class="btn-act" onclick="openResetPwdModal(${u.id}, '${escapeHtml(u.username)}')" title="Reset Password">
+                    🔑 Reset
+                  </button>
+                  ${!isSuper || data.users.filter(x => x.role === 'super_admin').length > 1 ? `
+                    <button class="btn-act danger" onclick="deleteUser(${u.id}, '${escapeHtml(u.username)}')" title="Delete User">
+                      🗑️
+                    </button>
+                  ` : ''}
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error("Error fetching users:", e);
+      }
+    }
+
+    function openCreateUserModal() {
+      document.getElementById('createUserModal').style.display = 'flex';
+      document.getElementById('newUsername').focus();
+    }
+
+    function closeCreateUserModal() {
+      document.getElementById('createUserModal').style.display = 'none';
+    }
+
+    async function handleCreateUserSubmit(e) {
+      e.preventDefault();
+      const username = document.getElementById('newUsername').value.trim();
+      const fullName = document.getElementById('newFullName').value.trim();
+      const email = document.getElementById('newEmail').value.trim();
+      const password = document.getElementById('newPassword').value;
+      const role = document.getElementById('newRole').value;
+      const btn = document.getElementById('btnSaveUser');
+
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      try {
+        const res = await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, full_name: fullName, email, password, role })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('User created successfully.');
+          closeCreateUserModal();
+          fetchUsers();
+          fetchStats();
+        } else {
+          alert('Error: ' + data.message);
+        }
+      } catch (err) {
+        alert('Network error creating user.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create User';
+      }
+    }
+
+    async function toggleUserStatus(userId, currentStatus) {
+      const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+      if (!confirm(`Are you sure you want to set this user to ${newStatus}?`)) return;
+
+      try {
+        const res = await fetch(`/api/admin/users/${userId}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus })
+        });
+        const data = await res.json();
+        if (data.success) {
+          fetchUsers();
+        } else {
+          alert(data.message);
+        }
+      } catch (e) {
+        alert('Failed to update status.');
+      }
+    }
+
+    function openResetPwdModal(userId, username) {
+      document.getElementById('resetUserId').value = userId;
+      document.getElementById('resetUsernameDisplay').textContent = username;
+      document.getElementById('resetNewPassword').value = '';
+      document.getElementById('resetPwdModal').style.display = 'flex';
+      document.getElementById('resetNewPassword').focus();
+    }
+
+    function closeResetPwdModal() {
+      document.getElementById('resetPwdModal').style.display = 'none';
+    }
+
+    async function handleResetPwdSubmit(e) {
+      e.preventDefault();
+      const userId = document.getElementById('resetUserId').value;
+      const newPassword = document.getElementById('resetNewPassword').value;
+
+      try {
+        const res = await fetch(`/api/admin/users/${userId}/password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: newPassword })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Password updated successfully.');
+          closeResetPwdModal();
+        } else {
+          alert(data.message);
+        }
+      } catch (e) {
+        alert('Failed to reset password.');
+      }
+    }
+
+    async function deleteUser(userId, username) {
+      if (!confirm(`Are you sure you want to permanently delete user '${username}'?`)) return;
+
+      try {
+        const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          alert('User deleted.');
+          fetchUsers();
+          fetchStats();
+        } else {
+          alert(data.message);
+        }
+      } catch (e) {
+        alert('Failed to delete user.');
+      }
+    }
+
+    async function loadTableData(tableName) {
+      const thead = document.getElementById('dbTableHead');
+      const tbody = document.getElementById('dbTableBody');
+      const clearBtn = document.getElementById('btnClearTableBtn');
+
+      clearBtn.style.display = (tableName === 'users') ? 'none' : 'inline-flex';
+
+      tbody.innerHTML = '<tr><td style="text-align:center; padding:2rem; color:#94a3b8;">Loading data from ' + tableName + '...</td></tr>';
+
+      try {
+        const res = await fetch(`/api/admin/db/table/${tableName}`);
+        const data = await res.json();
+
+        if (!data.success || !data.rows || data.rows.length === 0) {
+          thead.innerHTML = '';
+          tbody.innerHTML = `<tr><td style="text-align:center; padding:2rem; color:#94a3b8;">Table '${tableName}' is empty.</td></tr>`;
+          return;
+        }
+
+        const cols = Object.keys(data.rows[0]);
+        thead.innerHTML = '<tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
+        tbody.innerHTML = data.rows.map(r => {
+          return '<tr>' + cols.map(c => {
+            const val = r[c] !== null && r[c] !== undefined ? String(r[c]) : '<span style="color:#64748b;">NULL</span>';
+            return `<td>${escapeHtml(val)}</td>`;
+          }).join('') + '</tr>';
+        }).join('');
+      } catch (e) {
+        tbody.innerHTML = `<tr><td style="color:#ef4444; padding:1.5rem;">Failed to load table: ${e}</td></tr>`;
+      }
+    }
+
+    async function testDbConnection() {
+      try {
+        const res = await fetch('/api/db/test', { method: 'POST', body: JSON.stringify({}) });
+        const data = await res.json();
+        if (data.success) {
+          alert(`✅ Database Connection Active!\nServer: ${data.version}\nDatabase: ${data.database}`);
+        } else {
+          alert(`❌ Connection failed: ${data.message}`);
+        }
+      } catch (e) {
+        alert('Connection test failed.');
+      }
+    }
+
+    async function clearSelectedTable() {
+      const tbl = document.getElementById('dbTableSelector').value;
+      if (tbl === 'users') {
+        alert('Clearing users table is prohibited.');
+        return;
+      }
+      if (!confirm(`CAUTION: Are you sure you want to TRUNCATE / clear all records from '${tbl}'?`)) return;
+
+      try {
+        const res = await fetch(`/api/admin/db/table/${tbl}/clear`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          alert(`Table '${tbl}' cleared.`);
+          loadTableData(tbl);
+          fetchStats();
+        } else {
+          alert(data.message);
+        }
+      } catch (e) {
+        alert('Failed to clear table.');
+      }
+    }
+
+    async function exportDatabaseJson() {
+      try {
+        const res = await fetch('/api/db/history?limit=500');
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `vfs_automation_backup_${new Date().toISOString().substring(0,10)}.json`;
+        a.click();
+      } catch (e) {
+        alert('Backup download failed.');
+      }
+    }
+
+    // =========================================================================
+    // OPERATOR TELEGRAM MODAL & ACTIONS
+    // =========================================================================
+    function openUserTelegramModal(userId, username, chatId, tgNotif, emNotif) {
+      document.getElementById('tgUserId').value = userId;
+      document.getElementById('tgUsernameDisplay').textContent = username;
+      document.getElementById('tgUserChatId').value = chatId || '';
+      document.getElementById('tgUserNotifEnabled').checked = tgNotif !== false;
+      document.getElementById('emUserNotifEnabled').checked = emNotif !== false;
+      document.getElementById('userTelegramModal').style.display = 'flex';
+      document.getElementById('tgUserChatId').focus();
+    }
+
+    function closeUserTelegramModal() {
+      document.getElementById('userTelegramModal').style.display = 'none';
+    }
+
+    async function handleSaveUserTelegram(e) {
+      e.preventDefault();
+      const userId = document.getElementById('tgUserId').value;
+      const chatId = document.getElementById('tgUserChatId').value.trim();
+      const tgNotif = document.getElementById('tgUserNotifEnabled').checked;
+      const emNotif = document.getElementById('emUserNotifEnabled').checked;
+      const btn = document.getElementById('btnSaveOperatorTelegram');
+
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      try {
+        const res = await fetch(`/api/admin/users/${userId}/telegram`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            telegram_chat_id: chatId,
+            telegram_notifications: tgNotif,
+            email_notifications: emNotif
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Operator Telegram settings updated successfully.');
+          closeUserTelegramModal();
+          fetchUsers();
+        } else {
+          alert('Error: ' + data.message);
+        }
+      } catch (err) {
+        alert('Failed to save operator Telegram settings.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Settings';
+      }
+    }
+
+    async function testOperatorTelegramPing() {
+      const chatId = document.getElementById('tgUserChatId').value.trim();
+      if (!chatId) {
+        alert('Please enter a Telegram Chat ID first.');
+        return;
+      }
+      const token = document.getElementById('cfg_telegram_bot_token')?.value || '';
+      try {
+        const res = await fetch('/api/slot_monitor/test_telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telegram_chat_id: chatId, telegram_bot_token: token })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ Test Ping Sent Successfully to operator chat ID: ' + chatId);
+        } else {
+          alert('❌ Telegram Ping Failed:\n' + data.message);
+        }
+      } catch (e) {
+        alert('Network error testing Telegram ping.');
+      }
+    }
+
+    // =========================================================================
+    // 24/7 SLOT MONITOR & TELEGRAM SYSTEM
+    // =========================================================================
+    async function pollSlotMonitorStatus() {
+      try {
+        const res = await fetch('/api/slot_monitor/status');
+        const data = await res.json();
+        if (data.success && data.status) {
+          updateSlotMonitorUI(data.status);
+        }
+      } catch (e) {
+        console.error("Slot monitor poll error:", e);
+      }
+    }
+
+    function updateSlotMonitorUI(st) {
+      const isRunning = st.is_running;
+      const pulse = document.getElementById('adminWatcherPulse');
+      const stateLabel = document.getElementById('adminWatcherStateLabel');
+      const btnStart = document.getElementById('btnAdminWatcherStart');
+      const btnStop = document.getElementById('btnAdminWatcherStop');
+      const lastCheck = document.getElementById('adminWatcherLastCheck');
+      const dVisaBadge = document.getElementById('adminDVisaBadge');
+      const centreDisp = document.getElementById('adminWatcherCentreDisplay');
+
+      if (pulse) {
+        pulse.className = isRunning ? 'status-indicator-pulse' : 'status-indicator-pulse stopped';
+      }
+      if (stateLabel) {
+        stateLabel.innerHTML = isRunning 
+          ? '🟢 24/7 Watcher: <span style="color:#4ade80;">ACTIVE (Every 30s)</span>' 
+          : '⚪ 24/7 Watcher: <span style="color:#94a3b8;">STOPPED</span>';
+      }
+      if (btnStart) btnStart.style.display = isRunning ? 'none' : 'inline-flex';
+      if (btnStop) btnStop.style.display = isRunning ? 'inline-flex' : 'none';
+
+      if (lastCheck) {
+        lastCheck.textContent = st.last_check_time 
+          ? `Last check: ${st.last_check_time} (Total today: ${st.total_checks_today})`
+          : 'Last check: Waiting for first cycle...';
+      }
+      if (centreDisp && st.target_centre) {
+        centreDisp.textContent = st.target_centre;
+      }
+
+      // Update Long Stay D Visa Hero Badge
+      const dVisa = st.d_visa_status || 'Checking...';
+      const isAvailable = st.is_d_visa_available;
+      if (dVisaBadge) {
+        if (isAvailable) {
+          dVisaBadge.className = 'status-badge-inline active';
+          dVisaBadge.style.background = 'rgba(34, 197, 94, 0.25)';
+          dVisaBadge.style.color = '#4ade80';
+          dVisaBadge.style.border = '1px solid rgba(34, 197, 94, 0.6)';
+          dVisaBadge.textContent = '🎉 AVAILABLE: ' + dVisa;
+        } else {
+          dVisaBadge.className = 'status-badge-inline inactive';
+          dVisaBadge.style.background = 'rgba(239, 68, 68, 0.15)';
+          dVisaBadge.style.color = '#fca5a5';
+          dVisaBadge.style.border = '1px solid rgba(239, 68, 68, 0.35)';
+          dVisaBadge.textContent = dVisa;
+        }
+      }
+
+      // Update Category Grid
+      const cats = st.last_status || {};
+      setCatDate('catDateBusiness', cats['Business']);
+      setCatDate('catDateDVisa', cats['Long Stay D visa'] || dVisa);
+      setCatDate('catDateSchengen', cats['Schengen Visa- Less than 90 days']);
+      setCatDate('catDateSeasonal', cats['Seasonal worker']);
+      setCatDate('catDateEmbassy', cats['Embassy approved interview']);
+    }
+
+    function setCatDate(elementId, val) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      if (!val || val === 'Checking...') {
+        el.textContent = 'Checking...';
+        el.className = 'cat-date';
+        return;
+      }
+      el.textContent = val;
+      if (val.toLowerCase().includes('no date')) {
+        el.className = 'cat-date unavailable';
+      } else {
+        el.className = 'cat-date available';
+      }
+    }
+
+    async function startSlotMonitor() {
+      try {
+        const res = await fetch('/api/slot_monitor/start', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          pollSlotMonitorStatus();
+        } else {
+          alert(data.message);
+        }
+      } catch (e) {
+        alert('Failed to start slot monitor.');
+      }
+    }
+
+    async function stopSlotMonitor() {
+      try {
+        const res = await fetch('/api/slot_monitor/stop', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          pollSlotMonitorStatus();
+        } else {
+          alert(data.message);
+        }
+      } catch (e) {
+        alert('Failed to stop slot monitor.');
+      }
+    }
+
+    async function checkSlotsNow() {
+      try {
+        const res = await fetch('/api/slot_monitor/check_now', { method: 'POST' });
+        const data = await res.json();
+        alert(data.message || 'Slot check initiated.');
+        setTimeout(pollSlotMonitorStatus, 4000);
+      } catch (e) {
+        alert('Failed to initiate check.');
+      }
+    }
+
+    async function loadSlotSettings() {
+      try {
+        const res = await fetch('/api/slot_monitor/settings');
+        const data = await res.json();
+        if (data.success && data.settings) {
+          const s = data.settings;
+          if (document.getElementById('cfg_telegram_bot_token')) document.getElementById('cfg_telegram_bot_token').value = s.telegram_bot_token || '';
+          if (document.getElementById('cfg_telegram_chat_id')) document.getElementById('cfg_telegram_chat_id').value = s.telegram_chat_id || '';
+          if (document.getElementById('cfg_target_centre') && s.target_centre) document.getElementById('cfg_target_centre').value = s.target_centre;
+          if (document.getElementById('cfg_target_category') && s.target_category) document.getElementById('cfg_target_category').value = s.target_category;
+          if (document.getElementById('cfg_notify_email')) document.getElementById('cfg_notify_email').value = s.notify_email || '';
+          if (document.getElementById('cfg_check_interval')) document.getElementById('cfg_check_interval').value = s.check_interval_seconds || 30;
+          if (document.getElementById('cfg_daily_report_time')) document.getElementById('cfg_daily_report_time').value = s.daily_report_time || '22:00';
+          if (document.getElementById('cfg_telegram_enabled')) document.getElementById('cfg_telegram_enabled').checked = s.telegram_enabled !== 0;
+          if (document.getElementById('cfg_email_enabled')) document.getElementById('cfg_email_enabled').checked = s.email_enabled !== 0;
+          if (document.getElementById('cfg_daily_report_enabled')) document.getElementById('cfg_daily_report_enabled').checked = s.daily_report_enabled !== 0;
+        }
+      } catch (e) {
+        console.error("Error loading slot settings:", e);
+      }
+    }
+
+    async function handleSaveSlotSettings(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btnSaveSlotSettings');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      const payload = {
+        telegram_bot_token: document.getElementById('cfg_telegram_bot_token').value.trim(),
+        telegram_chat_id: document.getElementById('cfg_telegram_chat_id').value.trim(),
+        target_centre: document.getElementById('cfg_target_centre').value,
+        target_category: document.getElementById('cfg_target_category').value,
+        notify_email: document.getElementById('cfg_notify_email').value.trim(),
+        check_interval_seconds: parseInt(document.getElementById('cfg_check_interval').value) || 30,
+        daily_report_time: document.getElementById('cfg_daily_report_time').value,
+        telegram_enabled: document.getElementById('cfg_telegram_enabled').checked,
+        email_enabled: document.getElementById('cfg_email_enabled').checked,
+        daily_report_enabled: document.getElementById('cfg_daily_report_enabled').checked
+      };
+
+      try {
+        const res = await fetch('/api/slot_monitor/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Alert and Telegram settings saved successfully.');
+        } else {
+          alert('Error: ' + data.message);
+        }
+      } catch (err) {
+        alert('Failed to save settings.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 Save Alert & Telegram Settings';
+      }
+    }
+
+    async function testTelegramPing() {
+      const token = document.getElementById('cfg_telegram_bot_token').value.trim();
+      const chatId = document.getElementById('cfg_telegram_chat_id').value.trim();
+      if (!chatId) {
+        alert('Please enter a Telegram Chat ID first.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/slot_monitor/test_telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telegram_bot_token: token, telegram_chat_id: chatId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ Telegram Ping Succeeded!\n' + data.message);
+        } else {
+          alert('❌ Telegram Ping Failed:\n' + data.message);
+        }
+      } catch (e) {
+        alert('Network error testing Telegram ping.');
+      }
+    }
+
+    async function testEmailAlert() {
+      const email = document.getElementById('cfg_notify_email').value.trim();
+      if (!email || !email.includes('@')) {
+        alert('Please enter a valid notification email.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/slot_monitor/test_email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ Test Email Sent to ' + email + '!');
+        } else {
+          alert('❌ Email Failed: ' + data.message);
+        }
+      } catch (e) {
+        alert('Network error testing email alert.');
+      }
+    }
+
+    function toggleTokenVisibility() {
+      const inp = document.getElementById('cfg_telegram_bot_token');
+      inp.type = (inp.type === 'password') ? 'text' : 'password';
+    }
+
+    async function fetchSlotChecksHistory() {
+      try {
+        const res = await fetch('/api/slot_monitor/history?limit=30');
+        const data = await res.json();
+        const tbody = document.getElementById('slotHistoryTableBody');
+        if (!tbody) return;
+
+        if (!data.success || !data.history || data.history.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:#94a3b8;">No slot check audits recorded yet.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.history.map(h => {
+          const isAvail = h.is_available === 1 || h.is_available === true;
+          const availBadge = isAvail 
+            ? '<span style="color:#4ade80; font-weight:700;">YES ✅</span>' 
+            : '<span style="color:#94a3b8;">NO</span>';
+          const tgBadge = h.notified_telegram ? '<span style="color:#38bdf8;">Sent 🔔</span>' : '<span style="color:#64748b;">--</span>';
+          const emBadge = h.notified_email ? '<span style="color:#f97316;">Sent ✉️</span>' : '<span style="color:#64748b;">--</span>';
+
+          return `
+            <tr>
+              <td><span style="font-size:0.8rem; color:#94a3b8;">${h.checked_at ? String(h.checked_at).substring(0, 19) : '--'}</span></td>
+              <td><span style="font-size:0.82rem; color:#cbd5e1;">${escapeHtml(h.centre || '--')}</span></td>
+              <td><strong>${escapeHtml(h.category || '--')}</strong></td>
+              <td><span style="font-weight:600; color:${isAvail ? '#4ade80' : '#f87171'};">${escapeHtml(h.status_text || '--')}</span></td>
+              <td>${availBadge}</td>
+              <td>${tgBadge}</td>
+              <td>${emBadge}</td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error("Error fetching slot checks history:", e);
+      }
+    }
+
+    // Initial load
+    fetchStats();
+    fetchUsers();
+    pollSlotMonitorStatus();
+    loadSlotSettings();
+    setInterval(pollSlotMonitorStatus, 5000);
+  </script>
+</body>
+</html>

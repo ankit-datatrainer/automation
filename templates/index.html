@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VFS Global Automation Suite | Live Controller</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="alternate icon" href="{{ url_for('static', filename='favicon.svg') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -14,8 +16,8 @@
     <!-- Navbar -->
     <header class="navbar">
       <div class="brand">
-        <div class="brand-logo">
-          <span>VFS</span>
+        <div class="brand-logo" style="display:flex; align-items:center; justify-content:center;">
+          <img src="{{ url_for('static', filename='favicon.svg') }}" alt="VFS Icon" width="28" height="28">
         </div>
         <div class="brand-info">
           <h1>VFS Global Automation Suite</h1>
@@ -23,6 +25,12 @@
         </div>
       </div>
       <div class="header-badges">
+        {% if current_user and current_user.role == 'super_admin' %}
+        <a href="/admin" class="badge-pill admin-nav-pill" style="text-decoration:none; background:rgba(168,85,247,0.18); border:1px solid rgba(168,85,247,0.45); color:#d8b4fe;" title="Open Super Admin Center">
+          <span class="pill-dot" style="background:#c084fc;"></span>
+          <strong style="color:#f3e8ff;">👑 Super Admin</strong>
+        </a>
+        {% endif %}
         <div class="badge-pill city-pill">
           <span class="pill-dot"></span>
           <span class="pill-label">City:</span>
@@ -32,6 +40,7 @@
           <span class="pill-label">Category:</span>
           <strong id="badgeCategory">{{ cfg.VISA_CATEGORY }}</strong>
         </div>
+
         <div class="status-badge" id="statusBadge">
           <span class="status-indicator"></span>
           <span id="statusText">IDLE</span>
@@ -43,6 +52,14 @@
           </svg>
           <span>Settings</span>
         </button>
+        {% if current_user %}
+        <div class="badge-pill" style="color:#c7d2fe; background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3);">
+          <span>👤 {{ current_user.full_name or current_user.username }}</span>
+        </div>
+        <a href="/logout" class="badge-pill" style="text-decoration:none; color:#fca5a5; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3);" title="Sign Out">
+          <span>Sign Out</span>
+        </a>
+        {% endif %}
       </div>
     </header>
 
@@ -50,6 +67,90 @@
     <main class="dashboard-grid">
       <!-- Left Column: Operations & Live View -->
       <div class="col-main">
+        <!-- 24/7 Bulgaria Slot Watcher & Telegram Alerts Card -->
+        <section class="card" style="border-left: 4px solid #f97316; margin-bottom: 1.5rem; background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.75));">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.85rem;">
+              <span class="status-indicator-pulse" id="userWatcherPulse"></span>
+              <div>
+                <span class="card-subtitle" style="color: #f97316; font-weight: 700;">24/7 LIVE APPOINTMENT WATCHER</span>
+                <h3 class="card-title" style="margin: 0; font-size: 1.25rem; color: #fff;">
+                  Bulgaria Slot Watcher &bull; New Delhi
+                </h3>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+              <button class="btn btn-primary" id="btnUserWatcherStart" onclick="userStartSlotWatcher()" style="padding: 0.5rem 1rem; font-size: 0.82rem;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span>Start 24/7 Watcher</span>
+              </button>
+              <button class="btn btn-danger" id="btnUserWatcherStop" onclick="userStopSlotWatcher()" style="padding: 0.5rem 1rem; font-size: 0.82rem; display: none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12"></rect>
+                </svg>
+                <span>Stop Watcher</span>
+              </button>
+              <button class="btn btn-secondary" onclick="userCheckSlotNow()" style="padding: 0.5rem 0.9rem; font-size: 0.82rem;">
+                <span>⚡ Check Now</span>
+              </button>
+              <button class="btn btn-secondary" onclick="openOperatorNotificationModal()" style="padding: 0.5rem 0.9rem; font-size: 0.82rem;" title="Configure my Telegram and email alerts">
+                <span>📱 My Alerts</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Target Highlight: Long Stay D Visa -->
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(249, 115, 22, 0.35); border-radius: 12px; padding: 1.15rem 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 800; color: #f97316; letter-spacing: 0.05em;">🎯 TARGET CATEGORY (24/7 TELEGRAM ALERT)</span>
+                <span class="badge-pill" style="font-size: 0.7rem; padding: 2px 8px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;">
+                  Every 30s Scan
+                </span>
+              </div>
+              <h4 style="color: #ffffff; font-size: 1.2rem; margin: 0.25rem 0 0.15rem 0;">Long Stay D visa</h4>
+              <p style="color: #94a3b8; font-size: 0.8rem; margin: 0;">Instant Telegram notification + photo screenshot + email dispatch when slot date opens.</p>
+            </div>
+            <div style="text-align: right;">
+              <span class="status-badge-inline" id="userDVisaBadge" style="font-size: 0.95rem; font-weight: 800; padding: 0.45rem 1.1rem; border-radius: 9999px;">
+                Checking...
+              </span>
+            </div>
+          </div>
+
+          <!-- All Category Badges Grid -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+            <div class="slot-cat-item">
+              <span class="cat-name">Business</span>
+              <span class="cat-date" id="uCatBusiness">Checking...</span>
+            </div>
+            <div class="slot-cat-item highlight">
+              <span class="cat-name">Long Stay D visa</span>
+              <span class="cat-date" id="uCatDVisa">Checking...</span>
+            </div>
+            <div class="slot-cat-item">
+              <span class="cat-name">Schengen Visa (&lt;90d)</span>
+              <span class="cat-date" id="uCatSchengen">Checking...</span>
+            </div>
+            <div class="slot-cat-item">
+              <span class="cat-name">Seasonal worker</span>
+              <span class="cat-date" id="uCatSeasonal">Checking...</span>
+            </div>
+            <div class="slot-cat-item">
+              <span class="cat-name">Embassy interview</span>
+              <span class="cat-date" id="uCatEmbassy">Checking...</span>
+            </div>
+          </div>
+
+          <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; font-size: 0.78rem; color: #64748b;">
+            <span id="userWatcherStatusFooter">Status: Loading 24/7 Watcher state...</span>
+            <span>⏰ Automated Daily Summary: <strong>10:00 PM (22:00)</strong> via Telegram & Email</span>
+          </div>
+        </section>
+
         <!-- Control Card -->
         <section class="card control-hero">
           <div class="hero-top">
@@ -115,6 +216,9 @@
             <button class="btn btn-secondary" onclick="openConfigModal()">
               <span>Edit Details</span>
             </button>
+            <button type="button" class="btn btn-secondary" id="btnBringToFront" onclick="bringBrowserToFront()" title="Bring the real live browser window directly to the front of your screen">
+              <span>🖥️ Show Real Browser</span>
+            </button>
           </div>
 
           <!-- Live Step Status Callout -->
@@ -126,6 +230,20 @@
             </div>
           </div>
         </section>
+
+        <!-- Real Browser Interactive Notification -->
+        <div class="interactive-browser-banner" style="background: linear-gradient(90deg, rgba(99, 102, 241, 0.16), rgba(6, 182, 212, 0.12)); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 14px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; box-shadow: 0 4px 20px rgba(0,0,0,0.25);">
+          <div style="display: flex; align-items: center; gap: 0.85rem;">
+            <div style="font-size: 1.75rem; width: 44px; height: 44px; border-radius: 12px; background: rgba(99, 102, 241, 0.2); display: flex; align-items: center; justify-content: center;">🖥️</div>
+            <div>
+              <strong style="color: #fff; font-size: 0.95rem; display: block; margin-bottom: 0.2rem;">Real Live Browser Active on Your Desktop</strong>
+              <p style="color: #94a3b8; font-size: 0.82rem; margin: 0; line-height: 1.4;">The automation is running live in Brave/Chrome on your screen. You can directly watch keystrokes and clicks, add steps, enter OTP, and complete payment directly in the browser.</p>
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary" onclick="bringBrowserToFront()" style="padding: 0.55rem 1.1rem; font-size: 0.85rem; font-weight: 700; white-space: nowrap; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
+            🖥️ Show Real Browser
+          </button>
+        </div>
 
         <!-- Live Browser Screen Stream (Crucial for Local & VPS Remote Link) -->
         <section class="card screen-card">
@@ -217,6 +335,30 @@
           <div class="detail-row">
             <span class="detail-label">Portal Endpoint</span>
             <span class="detail-val font-mono" id="dispPortal">{{ cfg.PORTAL_URL }}</span>
+          </div>
+        </section>
+
+        <!-- Saved Profiles Quick Switcher -->
+        <section class="card side-card" id="sidebarDbCard">
+          <div class="side-card-header">
+            <div>
+              <h3 class="side-title">Saved Profiles</h3>
+              <span class="applicant-count-badge" id="sideDbProfileCount">0 Saved</span>
+            </div>
+          </div>
+          <div class="db-selector-card">
+            <label>Load Applicant Profile</label>
+            <select id="dbProfileSelect" class="db-selector-select" onchange="handleSelectDbProfile(this.value)">
+              <option value="">-- Switch Applicant Profile --</option>
+            </select>
+          </div>
+          <div style="margin-top:10px; display:flex; gap:8px;">
+            <button type="button" class="btn-profile-act" style="flex:1; padding:7px 10px; text-align:center;" onclick="saveActiveApplicantToDb()">
+              💾 Save Active Profile
+            </button>
+            <button type="button" class="btn-profile-act" style="padding:7px 10px; text-align:center;" onclick="loadDbProfiles()" title="Refresh Saved Profiles">
+              🔄
+            </button>
           </div>
         </section>
 
@@ -441,6 +583,8 @@
           </div>
         </div>
 
+
+
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" onclick="closeConfigModal()">Cancel</button>
           <button type="submit" class="btn btn-primary" id="btnSaveConfig">Save & Apply Changes</button>
@@ -528,6 +672,9 @@
         document.getElementById("labelBrowser").innerHTML = `Browser: <strong>${(cfg.BROWSER_CHANNEL || 'brave').toUpperCase()}</strong>`;
         document.getElementById("labelMode").innerHTML = `<strong>${cfg.HEADLESS ? 'Headless (VPS)' : 'Visible Window'}</strong>`;
         document.getElementById("dispBrowserMode").innerText = cfg.HEADLESS ? "Headless (VPS Mode)" : "Visible Browser";
+
+        // Load saved applicant profiles in background
+        loadDbProfiles();
       } catch (e) {
         console.error("Could not load config:", e);
       }
@@ -756,6 +903,10 @@
           document.getElementById("overlaySpinner").style.display = "none";
         } else {
           startLiveScreenPolling();
+          // Automatically bring the real browser window to front on desktop
+          setTimeout(() => {
+            bringBrowserToFront();
+          }, 1800);
         }
       } catch (err) {
         alert("Error connecting to server: " + err);
@@ -764,6 +915,15 @@
         document.getElementById("overlaySpinner").style.display = "none";
       }
     }
+
+    async function bringBrowserToFront() {
+      try {
+        await fetch("/api/bring_to_front", { method: "POST" });
+      } catch (err) {
+        console.error("bring_to_front error:", err);
+      }
+    }
+
 
     // Stop Automation API
     async function stopAutomation() {
@@ -872,10 +1032,15 @@
     }
 
     function switchTab(tabId) {
+      if (!tabId || !document.getElementById(tabId)) {
+        tabId = "tab-applicant";
+      }
       document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
       document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
-      document.querySelector(`button[onclick="switchTab('${tabId}')"]`).classList.add("active");
-      document.getElementById(tabId).classList.add("active");
+      const btn = document.querySelector(`button[onclick="switchTab('${tabId}')"]`);
+      if (btn) btn.classList.add("active");
+      const pane = document.getElementById(tabId);
+      if (pane) pane.classList.add("active");
     }
 
     function expandLiveScreen() {
@@ -938,8 +1103,14 @@
           if (entry.step === "LOGIN") document.getElementById("liveAddress").innerText = "https://visa.vfsglobal.com/ind/en/bgr/login";
           if (entry.step === "DASHBOARD") document.getElementById("liveAddress").innerText = "https://visa.vfsglobal.com/ind/en/bgr/dashboard";
           if (entry.step === "APPLICATION_DETAIL") document.getElementById("liveAddress").innerText = "https://visa.vfsglobal.com/ind/en/bgr/application-detail";
-          if (entry.step === "YOUR_DETAILS") document.getElementById("liveAddress").innerText = "https://visa.vfsglobal.com/ind/en/bgr/your-details";
-          if (entry.step === "BOOK_APPOINTMENT") document.getElementById("liveAddress").innerText = "https://visa.vfsglobal.com/ind/en/bgr/book-appointment";
+          if (entry.step === "YOUR_DETAILS" || entry.step === "APPLICANT") document.getElementById("liveAddress").innerText = "https://visa.vfsglobal.com/ind/en/bgr/your-details";
+          if (entry.step === "BOOK_APPOINTMENT" || entry.step === "SLOT") document.getElementById("liveAddress").innerText = "https://visa.vfsglobal.com/ind/en/bgr/book-appointment";
+          if (entry.step === "SERVICES") document.getElementById("liveAddress").innerText = "https://visa.vfsglobal.com/ind/en/bgr/services";
+          if (entry.step === "PAYMENT") {
+            document.getElementById("liveAddress").innerText = "https://visa.vfsglobal.com/ind/en/bgr/review-and-pay";
+            document.getElementById("calloutIcon").innerText = "💳";
+            bringBrowserToFront();
+          }
 
           refreshLiveFrame();
         } catch (e) {}
@@ -981,16 +1152,372 @@
       } catch (err) {}
     }
 
+    // -------------------------------------------------------------
+    // Saved Applicant Profiles Management
+    // -------------------------------------------------------------
+    let dbProfiles = [];
+
+    async function loadDbProfiles() {
+      const select = document.getElementById("dbProfileSelect");
+      const countBadge = document.getElementById("sideDbProfileCount");
+
+      try {
+        const res = await fetch("/api/db/applicants");
+        const data = await res.json();
+        dbProfiles = data.profiles || [];
+
+        if (countBadge) countBadge.innerText = `${dbProfiles.length} Saved`;
+
+        // Populate sidebar select dropdown
+        if (select) {
+          select.innerHTML = `<option value="">-- Switch Profile (${dbProfiles.length} saved) --</option>` +
+            dbProfiles.map(p => {
+              const sel = p.is_active ? "selected" : "";
+              const activeMark = p.is_active ? " ⭐ (Active)" : "";
+              return `<option value="${p.id}" ${sel}>${escapeHtml(p.profile_name || p.first_name + ' ' + p.last_name)} [${escapeHtml(p.passport_number)}]${activeMark}</option>`;
+            }).join("");
+        }
+      } catch (e) {
+        console.debug("Could not load profiles:", e);
+      }
+    }
+
+    async function handleSelectDbProfile(id) {
+      if (!id) return;
+      try {
+        const res = await fetch(`/api/db/applicants/${id}/select`, { method: "POST" });
+        const data = await res.json();
+        if (data.success && data.applicant) {
+          addLogLine(new Date().toLocaleTimeString(), "CONFIG", `Activated profile: ${data.applicant.profile_name} from MySQL database.`);
+          await loadConfig();
+          await loadDbProfiles();
+          if (document.getElementById("configModal").classList.contains("open")) {
+            closeConfigModal();
+          }
+        } else {
+          alert("Could not activate profile: " + (data.message || "Unknown error"));
+        }
+      } catch (err) {
+        alert("Error activating profile: " + err);
+      }
+    }
+
+    async function saveActiveApplicantToDb() {
+      const activeApp = currentApplicants[activeApplicantIdx] || currentApplicants[0] || {};
+      const targetCity = document.getElementById("cfg_target_city") ? document.getElementById("cfg_target_city").value : "delhi";
+      const visaCat = document.getElementById("cfg_category") ? document.getElementById("cfg_category").value : "Business";
+      const visaSubCat = document.getElementById("cfg_sub_category") ? document.getElementById("cfg_sub_category").value : "Business Visa";
+
+      const profilePayload = {
+        profile_name: `${activeApp.first_name || 'Applicant'} ${activeApp.last_name || ''} (${targetCity.toUpperCase()})`.trim(),
+        first_name: activeApp.first_name || "",
+        last_name: activeApp.last_name || "",
+        gender: activeApp.gender || "Male",
+        dob: activeApp.dob || "",
+        nationality: activeApp.nationality || "India",
+        passport_number: activeApp.passport_number || "",
+        passport_expiry: activeApp.passport_expiry || "",
+        phone: activeApp.phone || "",
+        email: activeApp.email || "",
+        target_city: targetCity,
+        visa_category: visaCat,
+        visa_sub_category: visaSubCat
+      };
+
+      if (!profilePayload.first_name || !profilePayload.passport_number) {
+        alert("Please ensure the applicant has at least a First Name and Passport Number before saving to database.");
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/db/applicants", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(profilePayload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          addLogLine(new Date().toLocaleTimeString(), "CONFIG", `Saved profile '${profilePayload.profile_name}'.`);
+          alert(`Profile '${profilePayload.profile_name}' saved successfully!`);
+          await loadDbProfiles();
+        } else {
+          alert("Error saving profile: " + data.message);
+        }
+      } catch (err) {
+        alert("Network error: " + err);
+      }
+    }
+
+    async function deleteDbApplicant(id) {
+      if (!confirm("Are you sure you want to delete this saved profile?")) return;
+      try {
+        const res = await fetch(`/api/db/applicants/${id}`, { method: "DELETE" });
+        const data = await res.json();
+        if (data.success) {
+          addLogLine(new Date().toLocaleTimeString(), "CONFIG", `Deleted profile #${id}.`);
+          await loadDbProfiles();
+        } else {
+          alert("Could not delete profile: " + data.message);
+        }
+      } catch (err) {
+        alert("Network error: " + err);
+      }
+    }
+
+    // =========================================================================
+    // 24/7 BULGARIA APPOINTMENT SLOT WATCHER
+    // =========================================================================
+    async function pollUserSlotMonitor() {
+      try {
+        const res = await fetch('/api/slot_monitor/status');
+        const data = await res.json();
+        if (data.success && data.status) {
+          updateUserSlotMonitorUI(data.status);
+        }
+      } catch (e) {
+        console.debug("User slot monitor poll notice:", e);
+      }
+    }
+
+    function updateUserSlotMonitorUI(st) {
+      const isRunning = st.is_running;
+      const pulse = document.getElementById('userWatcherPulse');
+      const btnStart = document.getElementById('btnUserWatcherStart');
+      const btnStop = document.getElementById('btnUserWatcherStop');
+      const dVisaBadge = document.getElementById('userDVisaBadge');
+      const footer = document.getElementById('userWatcherStatusFooter');
+
+      if (pulse) {
+        pulse.className = isRunning ? 'status-indicator-pulse' : 'status-indicator-pulse stopped';
+      }
+      if (btnStart) btnStart.style.display = isRunning ? 'none' : 'inline-flex';
+      if (btnStop) btnStop.style.display = isRunning ? 'inline-flex' : 'none';
+
+      if (footer) {
+        footer.textContent = isRunning 
+          ? `🟢 Watcher: ACTIVE (Every 30s) • Last check: ${st.last_check_time || 'Running...'} • Scans today: ${st.total_checks_today || 0}`
+          : `⚪ Watcher: IDLE (Stopped) • Last check: ${st.last_check_time || '--'}`;
+      }
+
+      // Update Long Stay D Visa Badge
+      const dVisa = st.d_visa_status || 'Checking...';
+      const isAvailable = st.is_d_visa_available;
+      if (dVisaBadge) {
+        if (isAvailable) {
+          dVisaBadge.className = 'status-badge-inline active';
+          dVisaBadge.style.background = 'rgba(34, 197, 94, 0.25)';
+          dVisaBadge.style.color = '#4ade80';
+          dVisaBadge.style.border = '1px solid rgba(34, 197, 94, 0.6)';
+          dVisaBadge.textContent = '🎉 AVAILABLE: ' + dVisa;
+        } else {
+          dVisaBadge.className = 'status-badge-inline inactive';
+          dVisaBadge.style.background = 'rgba(239, 68, 68, 0.15)';
+          dVisaBadge.style.color = '#fca5a5';
+          dVisaBadge.style.border = '1px solid rgba(239, 68, 68, 0.35)';
+          dVisaBadge.textContent = dVisa;
+        }
+      }
+
+      // Update Category Badges
+      const cats = st.last_status || {};
+      setUserCatDate('uCatBusiness', cats['Business']);
+      setUserCatDate('uCatDVisa', cats['Long Stay D visa'] || dVisa);
+      setUserCatDate('uCatSchengen', cats['Schengen Visa- Less than 90 days']);
+      setUserCatDate('uCatSeasonal', cats['Seasonal worker']);
+      setUserCatDate('uCatEmbassy', cats['Embassy approved interview']);
+    }
+
+    function setUserCatDate(elId, val) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      if (!val || val === 'Checking...') {
+        el.textContent = 'Checking...';
+        el.className = 'cat-date';
+        return;
+      }
+      el.textContent = val;
+      if (val.toLowerCase().includes('no date')) {
+        el.className = 'cat-date unavailable';
+      } else {
+        el.className = 'cat-date available';
+      }
+    }
+
+    async function userStartSlotWatcher() {
+      try {
+        const res = await fetch('/api/slot_monitor/start', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          addLogLine(new Date().toLocaleTimeString(), "MONITOR", "24/7 Appointment Slot Watcher started.");
+          pollUserSlotMonitor();
+        } else {
+          alert(data.message);
+        }
+      } catch (e) {
+        alert('Failed to start slot watcher.');
+      }
+    }
+
+    async function userStopSlotWatcher() {
+      try {
+        const res = await fetch('/api/slot_monitor/stop', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          addLogLine(new Date().toLocaleTimeString(), "MONITOR", "24/7 Appointment Slot Watcher stopped.");
+          pollUserSlotMonitor();
+        } else {
+          alert(data.message);
+        }
+      } catch (e) {
+        alert('Failed to stop slot watcher.');
+      }
+    }
+
+    async function userCheckSlotNow() {
+      try {
+        const res = await fetch('/api/slot_monitor/check_now', { method: 'POST' });
+        const data = await res.json();
+        addLogLine(new Date().toLocaleTimeString(), "MONITOR", data.message || "Manual slot availability check initiated.");
+        setTimeout(pollUserSlotMonitor, 4000);
+      } catch (e) {
+        alert('Failed to initiate check.');
+      }
+    }
+
+    function openOperatorNotificationModal() {
+      const m = document.getElementById('operatorNotificationModal');
+      if (m) m.classList.add('open');
+      fetch('/api/slot_monitor/settings')
+        .then(r => r.json())
+        .then(d => {
+          if (d.success && d.settings) {
+            const inp = document.getElementById('op_telegram_chat_id');
+            if (inp && !inp.value) inp.value = d.settings.telegram_chat_id || '';
+          }
+        }).catch(() => {});
+    }
+
+    function closeOperatorNotificationModal() {
+      const m = document.getElementById('operatorNotificationModal');
+      if (m) m.classList.remove('open');
+    }
+
+    async function handleSaveOperatorNotifications(e) {
+      e.preventDefault();
+      const chatId = document.getElementById('op_telegram_chat_id').value.trim();
+      const tgNotif = document.getElementById('op_telegram_notif').checked;
+      const emNotif = document.getElementById('op_email_notif').checked;
+      const btn = document.getElementById('btnSaveMyNotifications');
+
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      try {
+        const res = await fetch('/api/user/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            telegram_chat_id: chatId,
+            telegram_notifications: tgNotif,
+            email_notifications: emNotif
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Notification preferences saved successfully!');
+          closeOperatorNotificationModal();
+        } else {
+          alert('Error: ' + data.message);
+        }
+      } catch (err) {
+        alert('Failed to save notification preferences.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Notification Preferences';
+      }
+    }
+
+    async function testMyTelegramPing() {
+      const chatId = document.getElementById('op_telegram_chat_id').value.trim();
+      if (!chatId) {
+        alert('Please enter your Telegram Chat ID first.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/slot_monitor/test_telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telegram_chat_id: chatId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ Telegram Ping Succeeded!\n' + data.message);
+        } else {
+          alert('❌ Telegram Ping Failed:\n' + data.message);
+        }
+      } catch (e) {
+        alert('Network error testing Telegram ping.');
+      }
+    }
+
     // Initialize
     window.addEventListener("DOMContentLoaded", () => {
       loadConfig();
       setupSSE();
       loadScreenshots();
       checkStatus();
+      pollUserSlotMonitor();
       setInterval(checkStatus, 3000);
       setInterval(loadScreenshots, 6000);
+      setInterval(pollUserSlotMonitor, 5000);
       refreshLiveFrame();
     });
   </script>
+
+  <!-- Operator Notification Settings Modal -->
+  <div class="modal-backdrop" id="operatorNotificationModal">
+    <div class="modal-card" style="background: #0f172a; border: 1px solid rgba(255,255,255,0.12); border-radius: 18px; width: 100%; max-width: 480px; overflow: hidden; box-shadow: 0 25px 50px rgba(0,0,0,0.6);">
+      <div class="modal-header" style="padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0; color: #fff; font-size: 1.15rem; font-weight: 700;">📱 My Alert & Telegram Settings</h3>
+        <button type="button" class="btn-close" onclick="closeOperatorNotificationModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.5rem; cursor: pointer;">&times;</button>
+      </div>
+      <form onsubmit="handleSaveOperatorNotifications(event)">
+        <div class="modal-body" style="padding: 1.5rem;">
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1.25rem;">
+            Configure your personal Telegram and email alert channels to receive instant notifications when appointment dates become available.
+          </p>
+
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label class="form-label" style="display: flex; justify-content: space-between; margin-bottom: 0.4rem; color: #cbd5e1; font-size: 0.85rem; font-weight: 600;">
+              <span>My Telegram Chat ID</span>
+              <a href="https://t.me/userinfobot" target="_blank" style="color: #38bdf8; font-size: 0.75rem; text-decoration: none;">Find via @userinfobot &rarr;</a>
+            </label>
+            <div style="display: flex; gap: 0.5rem;">
+              <input type="text" id="op_telegram_chat_id" class="form-control" placeholder="e.g. 123456789">
+              <button type="button" class="btn btn-secondary" onclick="testMyTelegramPing()" style="white-space: nowrap;">
+                <span>🔔 Ping</span>
+              </button>
+            </div>
+            <small style="color: #64748b; font-size: 0.75rem;">Direct slot alerts with booking links will be sent to your Telegram chat.</small>
+          </div>
+
+          <div style="background: rgba(15,23,42,0.6); padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
+            <label style="display: flex; align-items: center; gap: 0.6rem; color: #e2e8f0; font-size: 0.85rem; cursor: pointer; margin-bottom: 0.75rem;">
+              <input type="checkbox" id="op_telegram_notif" checked style="width: 18px; height: 18px; accent-color: #38bdf8;">
+              <span>Send me Telegram alerts for <b>Long Stay D visa</b></span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.6rem; color: #e2e8f0; font-size: 0.85rem; cursor: pointer;">
+              <input type="checkbox" id="op_email_notif" checked style="width: 18px; height: 18px; accent-color: #f97316;">
+              <span>Send me Email alerts with booking links</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: flex-end; gap: 0.75rem; background: rgba(15,23,42,0.4);">
+          <button type="button" class="btn btn-secondary" onclick="closeOperatorNotificationModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveMyNotifications">Save Notification Preferences</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </body>
 </html>

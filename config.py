@@ -50,6 +50,18 @@ class Config:
     ACTION_TIMEOUT_MS: int = 35000
     OTP_TIMEOUT_SECONDS: int = 120
 
+    # Telegram 24/7 Slot Notifications
+    TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "8954641441:AAFb94KC7eQtBXtVmkyGZDYA9eixHsUUzrw")
+    TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "7815919062")
+
+    # Remote MySQL (Hostinger srv2203.hstgr.io / 82.25.121.184)
+    DB_HOST: str = os.getenv("DB_HOST", "srv2203.hstgr.io")
+    DB_PORT: int = int(os.getenv("DB_PORT", "3306"))
+    DB_DATABASE: str = os.getenv("DB_DATABASE", "")
+    DB_USERNAME: str = os.getenv("DB_USERNAME", "")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
+    DB_ENABLED: bool = os.getenv("DB_ENABLED", "false").lower() in ("true", "1", "yes")
+
     # Applicant details (Primary)
     APPLICANT_FIRST_NAME: str = os.getenv("APPLICANT_FIRST_NAME", "Ankit")
     APPLICANT_LAST_NAME: str = os.getenv("APPLICANT_LAST_NAME", "Sharma")

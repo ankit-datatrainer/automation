@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal Sign In — VFS Global Automation Suite</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="alternate icon" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #07090e;
+      --card-bg: rgba(15, 23, 42, 0.88);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-glow: rgba(99, 102, 241, 0.35);
+      --accent: #06b6d4;
+      --success: #10b981;
+      --danger: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --input-bg: rgba(30, 41, 59, 0.65);
+      --input-border: rgba(255, 255, 255, 0.12);
+      --input-focus: rgba(99, 102, 241, 0.25);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 20% 15%, rgba(99, 102, 241, 0.16) 0%, transparent 45%),
+        radial-gradient(circle at 80% 85%, rgba(6, 182, 212, 0.12) 0%, transparent 45%),
+        radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.5) 0%, transparent 75%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 440px;
+    }
+
+    .login-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 2.75rem 2.5rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 40px rgba(99, 102, 241, 0.15);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #6366f1, #06b6d4, #10b981);
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 2.25rem;
+    }
+
+    .logo-box {
+      width: 68px;
+      height: 68px;
+      margin: 0 auto 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(6, 182, 212, 0.12));
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      box-shadow: 0 10px 25px rgba(99, 102, 241, 0.25);
+    }
+
+    .logo-box img {
+      width: 42px;
+      height: 42px;
+    }
+
+    .portal-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.25rem 0.75rem;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #c7d2fe;
+      margin-bottom: 0.85rem;
+    }
+
+    .portal-tag-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 6px #10b981;
+    }
+
+    .login-title {
+      font-size: 1.55rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.4rem;
+      color: #ffffff;
+    }
+
+    .login-subtitle {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .alert {
+      padding: 0.85rem 1rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      font-size: 0.86rem;
+      display: none;
+      align-items: center;
+      gap: 0.65rem;
+      animation: alertFadeIn 0.2s ease-out;
+    }
+
+    @keyframes alertFadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .alert-danger {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+    }
+
+    .form-group {
+      margin-bottom: 1.35rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #cbd5e1;
+      margin-bottom: 0.55rem;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 1.1rem;
+      color: #64748b;
+      pointer-events: none;
+      transition: color 0.2s;
+    }
+
+    .form-control {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 14px;
+      padding: 0.9rem 1.1rem 0.9rem 2.85rem;
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: var(--text-main);
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .form-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--input-focus);
+      background: rgba(30, 41, 59, 0.95);
+    }
+
+    .form-control:focus + .input-icon,
+    .input-wrapper:focus-within .input-icon {
+      color: var(--primary);
+    }
+
+    .toggle-pwd {
+      position: absolute;
+      right: 1rem;
+      background: none;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      padding: 0.35rem;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s;
+    }
+
+    .toggle-pwd:hover {
+      color: #e2e8f0;
+    }
+
+    .form-options {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: -0.25rem;
+      margin-bottom: 1.75rem;
+      font-size: 0.82rem;
+    }
+
+    .remember-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .remember-wrap input[type="checkbox"] {
+      accent-color: var(--primary);
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+    }
+
+    .forgot-link {
+      color: #818cf8;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.15s;
+    }
+
+    .forgot-link:hover {
+      color: #a5b4fc;
+      text-decoration: underline;
+    }
+
+    .btn-submit {
+      width: 100%;
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 14px;
+      padding: 0.95rem;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 10px 25px -4px var(--primary-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+    }
+
+    .btn-submit:hover {
+      background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+      box-shadow: 0 12px 28px -4px rgba(99, 102, 241, 0.55);
+      transform: translateY(-1px);
+    }
+
+    .btn-submit:active {
+      transform: translateY(0);
+    }
+
+    .btn-submit:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .spinner {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #ffffff;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .security-footer {
+      margin-top: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.85rem;
+      text-align: center;
+    }
+
+    .security-badges {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+
+    .sec-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.74rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+
+    .sec-badge svg {
+      color: #10b981;
+    }
+
+    .copyright {
+      font-size: 0.76rem;
+      color: #475569;
+    }
+
+    /* Help Modal */
+    .help-modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .help-modal {
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 18px;
+      max-width: 420px;
+      width: 100%;
+      padding: 1.75rem;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.8);
+      text-align: center;
+    }
+
+    .help-modal h3 {
+      font-size: 1.15rem;
+      color: #fff;
+      margin-bottom: 0.65rem;
+    }
+
+    .help-modal p {
+      font-size: 0.88rem;
+      color: #94a3b8;
+      line-height: 1.5;
+      margin-bottom: 1.5rem;
+    }
+
+    .help-modal button {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 0.6rem 1.5rem;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* ============================================
+       LOGIN RESPONSIVE
+       ============================================ */
+    @media (max-width: 480px) {
+      body { padding: 1rem 0.75rem; }
+
+      .login-container { max-width: 100%; }
+
+      .login-card {
+        padding: 2rem 1.5rem;
+        border-radius: 18px;
+      }
+
+      .logo-box {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        margin-bottom: 1rem;
+      }
+      .logo-box img { width: 34px; height: 34px; }
+
+      .login-title { font-size: 1.3rem; }
+      .login-subtitle { font-size: 0.82rem; }
+
+      .form-control {
+        padding: 0.8rem 1rem 0.8rem 2.6rem;
+        font-size: 0.9rem;
+        border-radius: 12px;
+      }
+
+      .btn-submit {
+        padding: 0.85rem;
+        font-size: 0.95rem;
+        border-radius: 12px;
+      }
+
+      .form-options { font-size: 0.78rem; }
+
+      .security-badges { gap: 0.75rem; }
+      .sec-badge { font-size: 0.68rem; }
+
+      .help-modal {
+        max-width: 95vw;
+        padding: 1.25rem;
+        border-radius: 14px;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .login-card { padding: 1.5rem 1.15rem; border-radius: 14px; }
+      .login-title { font-size: 1.15rem; }
+      .portal-tag { font-size: 0.65rem; padding: 0.2rem 0.6rem; }
+      .form-label { font-size: 0.72rem; }
+      .security-footer { margin-top: 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="logo-box">
+          <img src="{{ url_for('static', filename='favicon.svg') }}" alt="VFS Suite Logo">
+        </div>
+        <div class="portal-tag">
+          <span class="portal-tag-dot"></span>
+          <span>Enterprise Portal</span>
+        </div>
+        <h1 class="login-title">VFS Global Suite</h1>
+        <p class="login-subtitle">Sign in with your authorized credentials to access visa appointment automation</p>
+      </div>
+
+      <div class="alert alert-danger" id="loginAlert">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span id="alertMsg">Invalid credentials. Please verify your login details.</span>
+      </div>
+
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label class="form-label" for="username">Username or Email</label>
+          <div class="input-wrapper">
+            <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            <input 
+              type="text" 
+              id="username" 
+              class="form-control" 
+              placeholder="Enter your username or email" 
+              required 
+              autocomplete="username"
+              autofocus
+            >
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <div class="input-wrapper">
+            <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            <input 
+              type="password" 
+              id="password" 
+              class="form-control" 
+              placeholder="Enter your password" 
+              required 
+              autocomplete="current-password"
+            >
+            <button type="button" class="toggle-pwd" onclick="togglePasswordVisibility()" title="Toggle password visibility">
+              <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-options">
+          <label class="remember-wrap">
+            <input type="checkbox" id="rememberMe">
+            <span>Remember this device</span>
+          </label>
+          <a href="javascript:void(0)" class="forgot-link" onclick="openHelpModal()">Trouble signing in?</a>
+        </div>
+
+        <button type="submit" class="btn-submit" id="btnSubmit">
+          <div class="spinner" id="btnSpinner"></div>
+          <span id="btnText">Sign In to Dashboard</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </button>
+      </form>
+    </div>
+
+    <!-- Security & Trust Badges -->
+    <div class="security-footer">
+      <div class="security-badges">
+        <span class="sec-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          256-Bit TLS Encrypted
+        </span>
+        <span class="sec-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+          Multi-Role RBAC Protected
+        </span>
+        <span class="sec-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+          </svg>
+          Cloud Database Synchronized
+        </span>
+      </div>
+      <p class="copyright">
+        VFS Global Automation Suite &bull; Enterprise Production Edition
+      </p>
+    </div>
+  </div>
+
+  <!-- Help / Forgot Modal -->
+  <div class="help-modal-backdrop" id="helpModal">
+    <div class="help-modal">
+      <div style="font-size:2rem; margin-bottom:0.75rem;">🔐</div>
+      <h3>Account Access & Recovery</h3>
+      <p>
+        For security compliance, user credentials can only be provisioned or reset by your designated <strong>Super Administrator</strong> via the Super Admin Control Center.
+      </p>
+      <button onclick="closeHelpModal()">Got It</button>
+    </div>
+  </div>
+
+  <script>
+    function togglePasswordVisibility() {
+      const pwd = document.getElementById("password");
+      const icon = document.getElementById("eyeIcon");
+      if (pwd.type === "password") {
+        pwd.type = "text";
+        icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+      } else {
+        pwd.type = "password";
+        icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+      }
+    }
+
+    function openHelpModal() {
+      document.getElementById("helpModal").style.display = "flex";
+    }
+
+    function closeHelpModal() {
+      document.getElementById("helpModal").style.display = "none";
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value;
+      const alertBox = document.getElementById("loginAlert");
+      const alertMsg = document.getElementById("alertMsg");
+      const btn = document.getElementById("btnSubmit");
+      const spinner = document.getElementById("btnSpinner");
+      const btnText = document.getElementById("btnText");
+
+      alertBox.style.display = "none";
+      btn.disabled = true;
+      spinner.style.display = "inline-block";
+      btnText.textContent = "Verifying...";
+
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          btnText.textContent = "Signing In...";
+          window.location.href = data.redirect || "/";
+        } else {
+          alertMsg.textContent = data.message || "Invalid username or password.";
+          alertBox.style.display = "flex";
+          btn.disabled = false;
+          spinner.style.display = "none";
+          btnText.textContent = "Sign In to Dashboard";
+        }
+      } catch (err) {
+        alertMsg.textContent = "Connection error. Please check server status.";
+        alertBox.style.display = "flex";
+        btn.disabled = false;
+        spinner.style.display = "none";
+        btnText.textContent = "Sign In to Dashboard";
+      }
+    }
+  </script>
+</body>
+</html>

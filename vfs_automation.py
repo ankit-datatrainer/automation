@@ -172,6 +172,8 @@ class VFSAutomation:
                 self.report("NAVIGATION", f"Opening {self.cfg.BOOK_APPOINTMENT_URL}...")
                 self.page.goto(self.cfg.BOOK_APPOINTMENT_URL, wait_until="domcontentloaded", timeout=self.cfg.ACTION_TIMEOUT_MS)
                 self.dismiss_cookie_banner()
+                if sys.platform == "win32" and not self.cfg.HEADLESS:
+                    bring_window_to_front_win32(self.page)
                 self.page.wait_for_timeout(1500)
                 self.take_screenshot("01_book_an_appointment")
 
@@ -218,7 +220,7 @@ class VFSAutomation:
                 self.page.wait_for_timeout(2000)
                 self.dismiss_cookie_banner()
                 if sys.platform == "win32" and not self.cfg.HEADLESS:
-                    bring_window_to_front_win32()
+                    bring_window_to_front_win32(self.page)
                 self.take_screenshot("02_login_redirect")
 
                 if self.stop_requested:
@@ -564,7 +566,7 @@ class VFSAutomation:
                 )
 
                 if sys.platform == "win32" and not self.cfg.HEADLESS:
-                    bring_window_to_front_win32()
+                    bring_window_to_front_win32(self.page)
 
                 # Automatically fill Step 1: Appointment Details
                 self.fill_appointment_details(
@@ -602,12 +604,21 @@ class VFSAutomation:
 
                     if is_step3:
                         self.report("BOOK_APPOINTMENT", "Reached Step 3 (Book Appointment)! Selecting available appointment slot...")
-                        self.select_appointment_slot()
-                        self.report("COMPLETED", "SUCCESS: Booking slot selected! Browser session held open for review.")
+                        slot_ok = self.select_appointment_slot()
+                        if slot_ok:
+                            self.handle_services_and_payment()
+                        else:
+                            self.report("COMPLETED", "Slot search completed. Real browser window held open for review.")
+                            if sys.platform == "win32" and not self.cfg.HEADLESS:
+                                bring_window_to_front_win32(self.page)
                     else:
-                        self.report("COMPLETED", "SUCCESS: Booking flow executed! Browser session held open for review.")
+                        self.report("COMPLETED", "SUCCESS: Booking flow executed! Real browser window held open for review.")
+                        if sys.platform == "win32" and not self.cfg.HEADLESS:
+                            bring_window_to_front_win32(self.page)
                 else:
-                    self.report("COMPLETED", "SUCCESS: Appointment Details processed! Browser window held open.")
+                    self.report("COMPLETED", "SUCCESS: Appointment Details processed! Real browser window held open.")
+                    if sys.platform == "win32" and not self.cfg.HEADLESS:
+                        bring_window_to_front_win32(self.page)
 
                 while not self.stop_requested:
                     self.page.wait_for_timeout(2000)
@@ -615,6 +626,19 @@ class VFSAutomation:
             except Exception as e:
                 self.report("ERROR", f"Automation encountered an error: {str(e)}")
                 self.take_screenshot("error_state")
+                try:
+                    import vfs_db
+                    vfs_db.log_booking_result(
+                        applicant_name=f"{self.cfg.APPLICANT_FIRST_NAME} {self.cfg.APPLICANT_LAST_NAME}",
+                        passport_number=self.cfg.APPLICANT_PASSPORT_NUMBER,
+                        target_city=self.cfg.TARGET_CITY,
+                        visa_category=self.cfg.VISA_CATEGORY,
+                        status="ERROR",
+                        step_reached=self.current_step,
+                        message=str(e)[:400]
+                    )
+                except Exception:
+                    pass
                 raise
             finally:
                 if self.stop_requested:
@@ -623,6 +647,93 @@ class VFSAutomation:
                         self.context.close()
                     except Exception:
                         pass
+
+    def handle_services_and_payment(self) -> bool:
+        """Handle Step 4 (Services) and Step 5 (Review & Payment Handover).
+        
+        Ensures the REAL browser window is maximized in the foreground on the user's
+        screen so the user can enter card/payment details directly in the live browser.
+        """
+        if not self.page:
+            return False
+
+        self.page.wait_for_timeout(3000)
+        cur_url = self.page.url.lower()
+
+        # Step 4: Optional Value Added Services
+        is_services = "service" in cur_url or self.page.locator('.step-circle:has-text("4"), [class*="step"]:has-text("Services"), text="Services"').count() > 0
+        if is_services:
+            self.report("SERVICES", "Reached Step 4 (Services). Advancing to Review & Payment...")
+            self.take_screenshot("22_services_page")
+            svc_continue = self.page.locator('button.btn-brand-orange:has-text("Continue"), button:has-text("Continue"), button:has-text("Skip")').first
+            if svc_continue.count() > 0 and svc_continue.is_visible():
+                try:
+                    svc_continue.click(timeout=5000)
+                except Exception:
+                    svc_continue.click(force=True)
+                self.page.wait_for_timeout(3500)
+
+        # Step 5: Review & Payment
+        self.report("PAYMENT", "💳 FINAL STEP: Review & Payment screen reached! Maximizing real browser window in front of you...")
+        self.take_screenshot("23_review_and_pay")
+
+        # Bring the REAL browser window directly into the foreground for user interaction
+        if sys.platform == "win32" and not self.cfg.HEADLESS:
+            bring_window_to_front_win32(self.page)
+
+        # Automatically check Terms and Conditions checkbox if present
+        try:
+            terms = self.page.locator('mat-checkbox:has-text("terms" i), mat-checkbox:has-text("agree" i), mat-checkbox input[type="checkbox"]').first
+            if terms.count() > 0 and not terms.is_checked():
+                terms.click()
+                self.page.wait_for_timeout(500)
+        except Exception:
+            pass
+
+        self.report(
+            "PAYMENT",
+            "💳 READY FOR USER PAYMENT: The real browser window is active in front of you. Please enter your payment details, OTP, and confirm payment in the live browser."
+        )
+
+        # Log milestone to MySQL database
+        try:
+            import vfs_db
+            vfs_db.log_booking_result(
+                applicant_name=f"{self.cfg.APPLICANT_FIRST_NAME} {self.cfg.APPLICANT_LAST_NAME}",
+                passport_number=self.cfg.APPLICANT_PASSPORT_NUMBER,
+                target_city=self.cfg.TARGET_CITY,
+                visa_category=self.cfg.VISA_CATEGORY,
+                status="PAYMENT_PENDING",
+                step_reached="REVIEW_AND_PAY",
+                message="Slot selected and review screen reached. Handed over to user for payment."
+            )
+        except Exception:
+            pass
+
+        # Keep browser open and monitor for confirmation
+        payment_deadline = time.monotonic() + 1800  # Up to 30 mins for user to complete payment
+        while time.monotonic() < payment_deadline and not self.stop_requested:
+            cur_url = self.page.url.lower()
+            if any(k in cur_url for k in ["confirmation", "success", "receipt", "appointment-confirmation"]):
+                self.take_screenshot("24_booking_confirmed")
+                self.report("COMPLETED", "🎉 SUCCESS: Payment processed and appointment booking confirmed!")
+                try:
+                    import vfs_db
+                    vfs_db.log_booking_result(
+                        applicant_name=f"{self.cfg.APPLICANT_FIRST_NAME} {self.cfg.APPLICANT_LAST_NAME}",
+                        passport_number=self.cfg.APPLICANT_PASSPORT_NUMBER,
+                        target_city=self.cfg.TARGET_CITY,
+                        visa_category=self.cfg.VISA_CATEGORY,
+                        status="CONFIRMED",
+                        step_reached="PAYMENT_CONFIRMED",
+                        message="Appointment confirmed and paid successfully."
+                    )
+                except Exception:
+                    pass
+                return True
+            self.page.wait_for_timeout(2000)
+
+        return True
 
     def select_mat_option(self, select_locator, target_text: str = "") -> list:
         """Click an Angular Material mat-select, retrieve options, and select target_text."""
@@ -948,12 +1059,52 @@ class VFSAutomation:
             ppn_loc = self.page.locator('input[formcontrolname*="passport" i]:not([formcontrolname*="expiry" i])').first
         set_val(ppn_loc, app_data["passport_number"])
 
-        # 7. Passport Expiry Date
-        self.report("APPLICANT", f"[{app_idx}/{total_apps}] Entering Passport Expiry Date: {app_data['passport_expiry']}")
-        exp_loc = self.page.locator('//label[contains(translate(., "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "passport expiry")]/following::input[1]').first
-        if exp_loc.count() == 0:
-            exp_loc = self.page.locator('input[formcontrolname*="expiry" i]').first
-        set_val(exp_loc, app_data["passport_expiry"])
+        # 7. Passport Expiry Date (Angular Material Datepicker)
+        exp_date = str(app_data.get("passport_expiry") or getattr(self.cfg, "APPLICANT_PASSPORT_EXPIRY", "20/05/2031")).strip()
+        if not exp_date or exp_date == "--":
+            exp_date = "20/05/2031"
+        self.report("APPLICANT", f"[{app_idx}/{total_apps}] Entering Passport Expiry Date: {exp_date}")
+
+        exp_candidates = [
+            'input[placeholder*="select the date" i]',
+            'input[formcontrolname*="expir" i]',
+            '//label[contains(translate(., "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "passport expiry")]/following::input[1]',
+            '//label[contains(translate(., "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "expiry")]/following::input[1]',
+            'mat-form-field:has-text("Passport Expiry") input',
+            'mat-form-field:has-text("Expiry") input'
+        ]
+
+        exp_loc = None
+        for sel in exp_candidates:
+            cand = self.page.locator(sel).first
+            if cand.count() > 0 and cand.is_visible():
+                exp_loc = cand
+                break
+
+        if exp_loc:
+            try:
+                exp_loc.scroll_into_view_if_needed()
+                exp_loc.click(force=True)
+                self.page.wait_for_timeout(200)
+                exp_loc.press("Control+a")
+                exp_loc.press("Backspace")
+                self.page.wait_for_timeout(100)
+                exp_loc.press_sequentially(exp_date, delay=45)
+                self.page.wait_for_timeout(200)
+                exp_loc.evaluate(f"""e => {{
+                    e.removeAttribute('readonly');
+                    e.removeAttribute('disabled');
+                    const s = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+                    if(s) s.call(e, '{exp_date}');
+                    else e.value = '{exp_date}';
+                    e.dispatchEvent(new Event('input', {{bubbles: true}}));
+                    e.dispatchEvent(new Event('change', {{bubbles: true}}));
+                    e.dispatchEvent(new Event('blur', {{bubbles: true}}));
+                }}""")
+                self.page.keyboard.press("Escape")
+                self.page.wait_for_timeout(200)
+            except Exception as e:
+                log.debug(f"Passport expiry input note: {e}")
 
         # 8. Contact Number
         self.report("APPLICANT", f"[{app_idx}/{total_apps}] Entering Contact Number: {app_data['phone']}")
@@ -974,20 +1125,21 @@ class VFSAutomation:
         set_val(email_loc, app_data["email"])
 
         self.take_screenshot(f"15_applicant_{app_idx}_filled")
-        self.report("APPLICANT", f"[{app_idx}/{total_apps}] Details entered. Checking rate-limit countdown...")
+        
+        # Bring real browser window directly to front so user sees all entered details
+        if sys.platform == "win32" and not self.cfg.HEADLESS:
+            bring_window_to_front_win32(self.page)
 
-        # 10. Rate limit countdown check
-        warning_loc = self.page.locator('text=Please wait')
-        if warning_loc.count() > 0 and warning_loc.first.is_visible():
-            self.report("APPLICANT", "VFS countdown active. Waiting for countdown to expire before saving...")
-            for _ in range(35):
-                if warning_loc.count() == 0 or not warning_loc.first.is_visible():
-                    self.report("APPLICANT", "Countdown completed.")
-                    break
-                self.page.wait_for_timeout(1000)
+        # 10. Rate limit countdown check (VFS enforces strict 30s wait before Save)
+        self.report("APPLICANT", f"[{app_idx}/{total_apps}] Details entered. Enforcing VFS 30-second security wait before Save...")
+        for wait_s in range(32, 0, -5):
+            warning_loc = self.page.locator('text="Please wait", text="wait 30 seconds"')
+            if warning_loc.count() > 0 and warning_loc.first.is_visible():
+                self.report("APPLICANT", f"VFS rate-limit active. Waiting for countdown ({wait_s}s remaining)...")
+            self.page.wait_for_timeout(5000)
 
         # 11. Click Save button
-        self.report("APPLICANT", f"[{app_idx}/{total_apps}] Saving applicant details...")
+        self.report("APPLICANT", f"[{app_idx}/{total_apps}] Submitting and saving applicant details...")
         save_btn = self.page.locator(
             'button.btn-brand-orange:has-text("Save"), '
             'button:has-text("Save"), '
@@ -999,7 +1151,7 @@ class VFSAutomation:
                 save_btn.click(timeout=5000)
             except Exception:
                 save_btn.click(force=True)
-            self.page.wait_for_timeout(3000)
+            self.page.wait_for_timeout(3500)
 
         self.take_screenshot(f"16_applicant_{app_idx}_saved")
 
