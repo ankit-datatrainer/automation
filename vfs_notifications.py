@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 
 from config import cfg
+from time_utils import get_ist_now, format_ist_dt, format_ist_display, format_ist_date, format_ist_time, IST
 
 log = logging.getLogger("vfs.notifications")
 
@@ -113,7 +114,7 @@ def test_telegram_connection(bot_token: str, chat_id: Optional[str] = None) -> T
             test_text = (
                 f"✅ <b>VFS Global Automation Suite — Alert Test</b>\n\n"
                 f"🤖 Connected Bot: <b>@{bot_info.get('username')}</b>\n"
-                f"📅 Time: <code>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
+                f"📅 Time (IST): <code>{format_ist_dt()}</code>\n"
                 f"⚡ 24/7 Slot Watcher notifications are configured and active!"
             )
             ok, msg = send_telegram_message(bot_token, chat_id, test_text)
@@ -196,7 +197,7 @@ def test_email_connection(to_email: str) -> Tuple[bool, str]:
       <h2 style="color: #f97316; margin-top: 0;">⚡ VFS Automation Alert System Test</h2>
       <p style="color: #cbd5e1; font-size: 15px;">This is a test notification confirming your email alerting channel is active.</p>
       <div style="background: rgba(15,23,42,0.6); border: 1px solid #1e293b; padding: 16px; border-radius: 8px; margin: 20px 0;">
-        <p style="margin: 4px 0; color: #94a3b8;">📅 Timestamp: <strong style="color: #e2e8f0;">{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</strong></p>
+        <p style="margin: 4px 0; color: #94a3b8;">📅 Timestamp (IST): <strong style="color: #e2e8f0;">{format_ist_dt()}</strong></p>
         <p style="margin: 4px 0; color: #94a3b8;">🌐 Target Portal: <strong style="color: #e2e8f0;">VFS Bulgaria (New Delhi)</strong></p>
         <p style="margin: 4px 0; color: #94a3b8;">🎯 Monitoring Category: <strong style="color: #f97316;">Long Stay D visa</strong></p>
       </div>
@@ -234,7 +235,7 @@ def broadcast_slot_alert(
     # 1. Prepare Message Contents
     portal_link = cfg.PORTAL_URL or "https://visa.vfsglobal.com/ind/en/bgr"
     booking_link = f"{portal_link}/book-an-appointment"
-    timestamp_str = datetime.now().strftime("%d-%b-%Y %I:%M:%S %p")
+    timestamp_str = format_ist_display()
 
     # Telegram Formatted Alert
     tg_text = (
@@ -242,7 +243,7 @@ def broadcast_slot_alert(
         f"🎯 <b>Category:</b> <code>{category}</code>\n"
         f"📅 <b>Available Date:</b> <b><u>{date_found}</u></b>\n"
         f"📍 <b>Centre:</b> {centre}\n"
-        f"⏰ <b>Detected At:</b> {timestamp_str}\n\n"
+        f"⏰ <b>Detected At (IST):</b> {timestamp_str}\n\n"
         f"👉 <a href='{booking_link}'><b>Click Here to Open VFS Booking Portal</b></a>\n\n"
         f"⚡ <i>Act immediately to reserve your appointment slot!</i>"
     )
@@ -356,8 +357,8 @@ def broadcast_daily_report(
 
     settings = get_slot_monitor_settings()
     users = get_all_users()
-    today_str = datetime.now().strftime("%d-%b-%Y")
-    now_str = datetime.now().strftime("%d-%b-%Y %I:%M %p")
+    today_str = format_ist_date()
+    now_str = format_ist_display()
 
     results = {"telegram_sent": 0, "email_sent": 0, "errors": []}
 
@@ -375,7 +376,7 @@ def broadcast_daily_report(
     cat_block_tg = "\n".join(cat_lines) if cat_lines else "No data available."
 
     tg_report = (
-        f"📊 <b>VFS DAILY AVAILABILITY REPORT (10 PM)</b>\n"
+        f"📊 <b>VFS DAILY AVAILABILITY REPORT (10:00 PM IST)</b>\n"
         f"📅 Date: <b>{today_str}</b> | Time: <code>{now_str}</code>\n"
         f"📍 Centre: <b>{centre}</b>\n\n"
         f"<b>Category Availability Status:</b>\n"

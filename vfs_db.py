@@ -43,6 +43,267 @@ def verify_password(password: str, stored_hash: str, salt: str) -> bool:
     return secrets.compare_digest(key.hex(), stored_hash)
 
 
+import threading
+import sqlite3
+import time
+
+_db_lock = threading.Lock()
+_persistent_mysql_conn = None
+_last_mysql_fail_time = 0.0
+SQLITE_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "vfs_local.sqlite")
+
+
+class ResilientCursor:
+    """Cursor wrapper that transparently supports both MySQL DictCursor and SQLite Row cursors."""
+    def __init__(self, raw_cur, is_sqlite=False):
+        self._cur = raw_cur
+        self.is_sqlite = is_sqlite
+
+    def execute(self, query, params=None):
+        if self.is_sqlite:
+            query = query.replace("%s", "?")
+            query = query.replace("NOW()", "CURRENT_TIMESTAMP")
+            if params is None:
+                return self._cur.execute(query)
+            return self._cur.execute(query, tuple(params) if isinstance(params, (list, tuple)) else params)
+        else:
+            if params is None:
+                return self._cur.execute(query)
+            return self._cur.execute(query, params)
+
+    def fetchone(self):
+        row = self._cur.fetchone()
+        if row is None:
+            return None
+        if self.is_sqlite and hasattr(row, "keys"):
+            return dict(row)
+        return row
+
+    def fetchall(self):
+        rows = self._cur.fetchall()
+        if self.is_sqlite:
+            return [dict(r) if hasattr(r, "keys") else r for r in rows]
+        return rows
+
+    @property
+    def lastrowid(self):
+        return self._cur.lastrowid
+
+    @property
+    def rowcount(self):
+        return self._cur.rowcount
+
+    def close(self):
+        try:
+            self._cur.close()
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+
+class ResilientConnection:
+    """Connection wrapper that preserves persistent TCP sockets for MySQL and supports local SQLite."""
+    def __init__(self, raw_conn, is_sqlite=False):
+        self._raw = raw_conn
+        self.is_sqlite = is_sqlite
+
+    def cursor(self):
+        if self.is_sqlite:
+            return ResilientCursor(self._raw.cursor(), is_sqlite=True)
+        return ResilientCursor(self._raw.cursor(), is_sqlite=False)
+
+    def commit(self):
+        try:
+            self._raw.commit()
+        except Exception:
+            pass
+
+    def rollback(self):
+        try:
+            self._raw.rollback()
+        except Exception:
+            pass
+
+    def close(self):
+        if self.is_sqlite:
+            try:
+                self._raw.commit()
+                self._raw.close()
+            except Exception:
+                pass
+        # Note: persistent MySQL connection stays open across requests to conserve connection quota!
+
+    def __getattr__(self, name):
+        return getattr(self._raw, name)
+
+
+def init_sqlite_db():
+    """Ensure local SQLite mirror has all tables and default seed data."""
+    try:
+        os.makedirs(os.path.dirname(SQLITE_DB_PATH), exist_ok=True)
+        conn = sqlite3.connect(SQLITE_DB_PATH)
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT,
+                telegram_chat_id TEXT,
+                telegram_notifications INTEGER DEFAULT 1,
+                email_notifications INTEGER DEFAULT 1,
+                password_hash TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                full_name TEXT,
+                role TEXT DEFAULT 'user',
+                status TEXT DEFAULT 'active',
+                created_by TEXT DEFAULT 'system',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS applicant_profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_name TEXT NOT NULL,
+                first_name TEXT NOT NULL,
+                last_name TEXT NOT NULL,
+                gender TEXT DEFAULT 'Male',
+                dob TEXT NOT NULL,
+                nationality TEXT DEFAULT 'India',
+                passport_number TEXT NOT NULL,
+                passport_expiry TEXT NOT NULL,
+                phone TEXT NOT NULL,
+                email TEXT NOT NULL,
+                target_city TEXT DEFAULT 'delhi',
+                visa_category TEXT DEFAULT 'Business',
+                visa_sub_category TEXT DEFAULT 'Business Visa',
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS vfs_accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                vfs_email TEXT UNIQUE NOT NULL,
+                vfs_password TEXT NOT NULL,
+                gmail_user TEXT,
+                gmail_app_password TEXT,
+                status TEXT DEFAULT 'active',
+                notes TEXT,
+                last_used_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS booking_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                applicant_name TEXT,
+                passport_number TEXT,
+                target_city TEXT,
+                visa_category TEXT,
+                status TEXT,
+                step_reached TEXT,
+                slot_date TEXT,
+                slot_time TEXT,
+                reference_no TEXT,
+                message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS slot_monitor_settings (
+                id INTEGER PRIMARY KEY,
+                target_centre TEXT DEFAULT 'Bulgaria Visa Application Center ,New Delhi',
+                target_category TEXT DEFAULT 'Long Stay D visa',
+                check_interval_seconds INTEGER DEFAULT 30,
+                telegram_bot_token TEXT DEFAULT '',
+                telegram_chat_id TEXT DEFAULT '',
+                telegram_enabled INTEGER DEFAULT 1,
+                notify_email TEXT DEFAULT '',
+                email_enabled INTEGER DEFAULT 1,
+                daily_report_time TEXT DEFAULT '22:00',
+                daily_report_enabled INTEGER DEFAULT 1,
+                is_running INTEGER DEFAULT 0,
+                last_checked_at TEXT,
+                last_status_message TEXT,
+                last_found_date TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS slot_checks_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                centre TEXT,
+                category TEXT,
+                status_text TEXT,
+                is_available INTEGER DEFAULT 0,
+                appointment_date TEXT,
+                all_categories_json TEXT,
+                notified_telegram INTEGER DEFAULT 0,
+                notified_email INTEGER DEFAULT 0,
+                checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        # Seed default users if empty
+        cur.execute("SELECT COUNT(*) FROM users")
+        if cur.fetchone()[0] == 0:
+            h1, s1 = hash_password("Admin@2026!")
+            cur.execute("INSERT INTO users (username, email, password_hash, salt, full_name, role) VALUES (?, ?, ?, ?, ?, ?)",
+                        ("superadmin", "superadmin@vfsautomation.com", h1, s1, "Super Administrator", "super_admin"))
+            h2, s2 = hash_password("Operator@2026!")
+            cur.execute("INSERT INTO users (username, email, telegram_chat_id, password_hash, salt, full_name, role) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        ("operator1", "operator1@vfsautomation.com", "7815919062", h2, s2, "Automation Operator 1", "user"))
+            h3, s3 = hash_password("Operator@2026!")
+            cur.execute("INSERT INTO users (username, email, password_hash, salt, full_name, role) VALUES (?, ?, ?, ?, ?, ?)",
+                        ("operator2", "operator2@vfsautomation.com", h3, s3, "Automation Operator 2", "user"))
+
+        # Seed applicant profile if empty
+        cur.execute("SELECT COUNT(*) FROM applicant_profiles")
+        if cur.fetchone()[0] == 0 and cfg.APPLICANT_FIRST_NAME:
+            cur.execute("""
+                INSERT INTO applicant_profiles (
+                    profile_name, first_name, last_name, gender, dob, nationality,
+                    passport_number, passport_expiry, phone, email,
+                    target_city, visa_category, visa_sub_category, is_active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            """, (
+                f"{cfg.APPLICANT_FIRST_NAME} {cfg.APPLICANT_LAST_NAME} (Default)",
+                cfg.APPLICANT_FIRST_NAME, cfg.APPLICANT_LAST_NAME, cfg.APPLICANT_GENDER,
+                cfg.APPLICANT_DOB, cfg.APPLICANT_NATIONALITY, cfg.APPLICANT_PASSPORT_NUMBER,
+                cfg.APPLICANT_PASSPORT_EXPIRY, cfg.APPLICANT_PHONE, cfg.APPLICANT_EMAIL,
+                cfg.TARGET_CITY, cfg.VISA_CATEGORY, cfg.VISA_SUB_CATEGORY
+            ))
+
+        # Seed slot monitor settings if empty
+        cur.execute("SELECT COUNT(*) FROM slot_monitor_settings WHERE id = 1")
+        if cur.fetchone()[0] == 0:
+            cur.execute("""
+                INSERT INTO slot_monitor_settings (
+                    id, target_centre, target_category, check_interval_seconds,
+                    telegram_bot_token, telegram_chat_id, telegram_enabled,
+                    notify_email, email_enabled, daily_report_time, daily_report_enabled
+                ) VALUES (1, ?, ?, 30, ?, ?, 1, ?, 1, '22:00', 1)
+            """, (
+                "Bulgaria Visa Application Center ,New Delhi",
+                "Long Stay D visa",
+                cfg.TELEGRAM_BOT_TOKEN or "",
+                cfg.TELEGRAM_CHAT_ID or "7815919062",
+                cfg.VFS_EMAIL or ""
+            ))
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        log.warning(f"Error ensuring SQLite db: {e}")
+
+
 def get_db_connection(
     host: Optional[str] = None,
     port: Optional[int] = None,
@@ -50,30 +311,73 @@ def get_db_connection(
     password: Optional[str] = None,
     database: Optional[str] = None,
     timeout: int = 8
-):
-    """Establish connection to remote or local MySQL database."""
-    h = host or cfg.DB_HOST or "srv2203.hstgr.io"
-    p = port or cfg.DB_PORT or 3306
-    u = user or cfg.DB_USERNAME
-    pwd = password or cfg.DB_PASSWORD
-    db = database or cfg.DB_DATABASE
+) -> ResilientConnection:
+    """Establish connection to remote MySQL database with persistent socket reuse and transparent SQLite fallback."""
+    global _persistent_mysql_conn
 
-    if not u or not db:
-        raise ValueError("Database username and database name must be configured.")
+    # Custom host/credentials requested (e.g. testing connection in admin portal):
+    if host or port or user or password or database:
+        try:
+            raw = pymysql.connect(
+                host=host or cfg.DB_HOST or "srv2203.hstgr.io",
+                port=int(port or cfg.DB_PORT or 3306),
+                user=user or cfg.DB_USERNAME,
+                password=password or cfg.DB_PASSWORD,
+                database=database or cfg.DB_DATABASE,
+                charset="utf8mb4",
+                cursorclass=pymysql.cursors.DictCursor,
+                autocommit=True,
+                connect_timeout=timeout,
+                read_timeout=timeout,
+                write_timeout=timeout
+            )
+            return ResilientConnection(raw, is_sqlite=False)
+        except Exception as e:
+            log.warning(f"Direct MySQL connection attempt failed: {e}")
+            raise
 
-    return pymysql.connect(
-        host=h,
-        port=int(p),
-        user=u,
-        password=pwd,
-        database=db,
-        charset="utf8mb4",
-        cursorclass=pymysql.cursors.DictCursor,
-        autocommit=True,
-        connect_timeout=timeout,
-        read_timeout=timeout,
-        write_timeout=timeout
-    )
+    # 1. Try persistent MySQL connection if not in cooldown
+    global _last_mysql_fail_time
+    now_ts = time.time()
+    with _db_lock:
+        if _persistent_mysql_conn is not None:
+            try:
+                _persistent_mysql_conn.ping(reconnect=True)
+                return ResilientConnection(_persistent_mysql_conn, is_sqlite=False)
+            except Exception as e:
+                log.warning(f"Persistent MySQL connection dropped, attempting reconnect: {e}")
+                try:
+                    _persistent_mysql_conn.close()
+                except Exception:
+                    pass
+                _persistent_mysql_conn = None
+
+        if (now_ts - _last_mysql_fail_time) > 60:
+            try:
+                _persistent_mysql_conn = pymysql.connect(
+                    host=cfg.DB_HOST or "srv2203.hstgr.io",
+                    port=int(cfg.DB_PORT or 3306),
+                    user=cfg.DB_USERNAME,
+                    password=cfg.DB_PASSWORD,
+                    database=cfg.DB_DATABASE,
+                    charset="utf8mb4",
+                    cursorclass=pymysql.cursors.DictCursor,
+                    autocommit=True,
+                    connect_timeout=timeout,
+                    read_timeout=timeout,
+                    write_timeout=timeout
+                )
+                log.info("Established persistent MySQL connection to Hostinger.")
+                return ResilientConnection(_persistent_mysql_conn, is_sqlite=False)
+            except Exception as e:
+                _last_mysql_fail_time = now_ts
+                log.warning(f"MySQL connection unavailable ({e}). Cooling down for 60s, falling back to local SQLite mirror.")
+
+    # 2. Transparent fallback to SQLite mirror
+    init_sqlite_db()
+    sqlite_conn = sqlite3.connect(SQLITE_DB_PATH, timeout=10)
+    sqlite_conn.row_factory = sqlite3.Row
+    return ResilientConnection(sqlite_conn, is_sqlite=True)
 
 
 def test_connection(
@@ -857,7 +1161,7 @@ def record_slot_check(
 
 
 def get_recent_slot_checks(limit: int = 50) -> List[Dict[str, Any]]:
-    """Fetch recent slot check records."""
+    """Fetch recent slot check records with IST checked_at string."""
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
@@ -866,6 +1170,13 @@ def get_recent_slot_checks(limit: int = 50) -> List[Dict[str, Any]]:
             """, (limit,))
             rows = cur.fetchall()
         conn.close()
+        for r in rows:
+            if "checked_at" in r and r["checked_at"]:
+                val = r["checked_at"]
+                if isinstance(val, datetime):
+                    r["checked_at"] = val.strftime("%Y-%m-%d %H:%M:%S IST")
+                elif isinstance(val, str) and not val.endswith("IST"):
+                    r["checked_at"] = f"{val} IST"
         return rows
     except Exception as e:
         log.error(f"Error fetching slot checks: {e}")
@@ -911,10 +1222,16 @@ def get_database_stats() -> Dict[str, Any]:
                     stats[tbl] = cur.fetchone()["cnt"]
                 except Exception:
                     stats[tbl] = 0
-            cur.execute("SELECT VERSION() AS ver, DATABASE() AS db_name")
-            srv = cur.fetchone()
-            stats["version"] = srv.get("ver")
-            stats["database"] = srv.get("db_name")
+            if getattr(conn, "is_sqlite", False):
+                cur.execute("SELECT sqlite_version() AS ver")
+                ver_row = cur.fetchone()
+                stats["version"] = f"SQLite {ver_row.get('ver') if ver_row else ''} (Hostinger MySQL throttled/failover mirror)"
+                stats["database"] = "vfs_local.sqlite (Hostinger failover mirror)"
+            else:
+                cur.execute("SELECT VERSION() AS ver, DATABASE() AS db_name")
+                srv = cur.fetchone()
+                stats["version"] = srv.get("ver")
+                stats["database"] = srv.get("db_name")
         conn.close()
         return {"success": True, "stats": stats}
     except Exception as e:
@@ -951,7 +1268,10 @@ def clear_table_data(table_name: str) -> Tuple[bool, str]:
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            cur.execute(f"TRUNCATE TABLE `{table_name}`")
+            if getattr(conn, "is_sqlite", False):
+                cur.execute(f"DELETE FROM `{table_name}`")
+            else:
+                cur.execute(f"TRUNCATE TABLE `{table_name}`")
         conn.close()
         return True, f"Table '{table_name}' cleared successfully."
     except Exception as e:

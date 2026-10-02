@@ -18,6 +18,10 @@ data/screenshots/
 data/*profile*/
 data/browser_profile/
 data/test_*
+data/*.sqlite
+data/*.sqlite3
+*.sqlite
+*.sqlite3
 scratch/
 
 # Operating system artifacts

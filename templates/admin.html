@@ -669,6 +669,10 @@
       </div>
 
       <div class="admin-nav-actions">
+        <div class="admin-user-pill" id="adminIstClockPill" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; font-weight: 700;" title="Indian Standard Time (IST, UTC+05:30)">
+          <span>🕒 <span id="adminIstClock">{{ server_ist_time or '--:--:-- IST' }}</span></span>
+        </div>
+
         <a href="/" class="btn-portal-back" title="Go to Automation Controller">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="19" y1="12" x2="5" y2="12"></line>
@@ -1649,8 +1653,12 @@ pm2 save</pre>
       if (btnStop) btnStop.style.display = isRunning ? 'inline-flex' : 'none';
 
       if (lastCheck) {
-        lastCheck.textContent = st.last_check_time 
-          ? `Last check: ${st.last_check_time} (Total today: ${st.total_checks_today})`
+        let checkTime = st.last_check_time || '';
+        if (checkTime && !checkTime.includes('IST')) {
+          checkTime += ' IST';
+        }
+        lastCheck.textContent = checkTime 
+          ? `Last check: ${checkTime} (Total today: ${st.total_checks_today})`
           : 'Last check: Waiting for first cycle...';
       }
       if (centreDisp && st.target_centre) {
@@ -1875,7 +1883,7 @@ pm2 save</pre>
 
           return `
             <tr>
-              <td><span style="font-size:0.8rem; color:#94a3b8;">${h.checked_at ? String(h.checked_at).substring(0, 19) : '--'}</span></td>
+              <td><span style="font-size:0.8rem; color:#94a3b8;">${h.checked_at ? (String(h.checked_at).substring(0, 19) + ' IST') : '--'}</span></td>
               <td><span style="font-size:0.82rem; color:#cbd5e1;">${escapeHtml(h.centre || '--')}</span></td>
               <td><strong>${escapeHtml(h.category || '--')}</strong></td>
               <td><span style="font-weight:600; color:${isAvail ? '#4ade80' : '#f87171'};">${escapeHtml(h.status_text || '--')}</span></td>
@@ -1890,7 +1898,29 @@ pm2 save</pre>
       }
     }
 
+    // Live Indian Standard Time (IST, UTC+5:30) Clock
+    function getAdminISTTime() {
+      try {
+        return new Intl.DateTimeFormat('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(new Date()) + ' IST';
+      } catch (e) {
+        return new Date().toLocaleTimeString() + ' IST';
+      }
+    }
+
+    function updateAdminISTClock() {
+      const el = document.getElementById('adminIstClock');
+      if (el) el.textContent = getAdminISTTime();
+    }
+
     // Initial load
+    updateAdminISTClock();
+    setInterval(updateAdminISTClock, 1000);
     fetchStats();
     fetchUsers();
     pollSlotMonitorStatus();

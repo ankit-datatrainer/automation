@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from playwright.sync_api import sync_playwright, BrowserContext, Page, Playwright
 
 from config import cfg
+from time_utils import get_ist_now, format_ist_dt, format_ist_hm, format_ist_date, format_ist_display, IST
 import vfs_db
 import vfs_notifications
 
@@ -52,7 +53,7 @@ class VFSSlotMonitor:
         self.last_centre: str = "Bulgaria Visa Application Center ,New Delhi"
         self.last_found_date: Optional[str] = None
         self.total_checks_today: int = 0
-        self.last_reset_day: int = datetime.now().day
+        self.last_reset_day: int = get_ist_now().day
         self.daily_report_sent_date: Optional[str] = None
         self.last_alert_date_sent: Optional[str] = None
         self.last_error: Optional[str] = None
@@ -61,8 +62,8 @@ class VFSSlotMonitor:
     def get_status(self) -> Dict[str, Any]:
         """Return current slot monitor status for dashboard and APIs."""
         with self.lock:
-            # Check if midnight rolled over to reset today's check count
-            now_day = datetime.now().day
+            # Check if midnight rolled over to reset today's check count (IST midnight)
+            now_day = get_ist_now().day
             if now_day != self.last_reset_day:
                 self.total_checks_today = 0
                 self.last_reset_day = now_day
@@ -74,7 +75,7 @@ class VFSSlotMonitor:
                 "is_running": self.is_running,
                 "target_centre": self.last_centre,
                 "target_category": "Long Stay D visa",
-                "last_check_time": self.last_check_time.strftime("%Y-%m-%d %H:%M:%S") if self.last_check_time else None,
+                "last_check_time": format_ist_dt(self.last_check_time) if self.last_check_time else None,
                 "last_status": self.last_status,
                 "d_visa_status": d_visa_status,
                 "is_d_visa_available": is_d_available,
@@ -157,10 +158,10 @@ class VFSSlotMonitor:
         from vfs_browser import launch_stealth_browser
 
         portal_url = cfg.PORTAL_URL or "https://visa.vfsglobal.com/ind/en/bgr"
-        timestamp = datetime.now()
-        timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = get_ist_now()
+        timestamp_str = format_ist_dt(timestamp)
 
-        log.info(f"Checking slot availability for '{target_centre}' on {portal_url}...")
+        log.info(f"Checking slot availability for '{target_centre}' on {portal_url} (Time: {timestamp_str})...")
         results_data = {}
         screenshot_path = str(SCREENSHOTS_DIR / "latest_slot_check.png")
 
@@ -346,12 +347,12 @@ class VFSSlotMonitor:
         }
 
     def _check_and_send_daily_report(self, centre: str, daily_report_time: str = "22:00"):
-        """Send daily summary report at configured time (default 10:00 PM)."""
-        now = datetime.now()
-        current_hm = now.strftime("%H:%M")
-        today_date_str = now.strftime("%Y-%m-%d")
+        """Send daily summary report at configured time (default 10:00 PM IST)."""
+        now = get_ist_now()
+        current_hm = format_ist_hm(now)
+        today_date_str = format_ist_date(now)
 
-        # Check if hour and minute match (e.g. "22:00" = 10:00 PM)
+        # Check if hour and minute match in IST (e.g. "22:00" = 10:00 PM IST)
         if current_hm == daily_report_time.strip():
             with self.lock:
                 if self.daily_report_sent_date == today_date_str:

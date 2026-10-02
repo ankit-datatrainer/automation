@@ -41,6 +41,10 @@
           <strong id="badgeCategory">{{ cfg.VISA_CATEGORY }}</strong>
         </div>
 
+        <div class="badge-pill" id="badgeIstClock" style="color: #38bdf8; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; font-weight: 700;" title="Indian Standard Time (IST, UTC+05:30)">
+          <span>🕒 <span id="clockIstTime">{{ server_ist_time or '--:--:-- IST' }}</span></span>
+        </div>
+
         <div class="status-badge" id="statusBadge">
           <span class="status-indicator"></span>
           <span id="statusText">IDLE</span>
@@ -183,7 +187,7 @@
 
           <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; font-size: 0.78rem; color: #64748b;">
             <span id="userWatcherStatusFooter">Status: Loading 24/7 Watcher state...</span>
-            <span>⏰ Automated Daily Summary: <strong>10:00 PM (22:00)</strong> via Telegram & Email</span>
+            <span>⏰ Automated Daily Summary: <strong>10:00 PM (22:00) IST</strong> via Telegram & Email</span>
           </div>
         </section>
 
@@ -1019,6 +1023,28 @@
       }
     }
 
+    // Indian Standard Time (IST, UTC+5:30) Helper
+    function getISTTimeString() {
+      try {
+        return new Intl.DateTimeFormat('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(new Date()) + ' IST';
+      } catch (e) {
+        return new Date().toLocaleTimeString() + ' IST';
+      }
+    }
+
+    function updateLiveISTClock() {
+      const el = document.getElementById('clockIstTime');
+      if (el) {
+        el.textContent = getISTTimeString();
+      }
+    }
+
     // Logs & Stepper
     function clearLogs() {
       document.getElementById("terminalLogs").innerHTML = "";
@@ -1032,14 +1058,21 @@
 
     function addLogLine(time, step, msg) {
       const container = document.getElementById("terminalLogs");
+      if (!container) return;
       const line = document.createElement("div");
       let cls = "info";
       if (step === "ERROR") cls = "error";
       if (step === "COMPLETED") cls = "success";
       if (step === "OTP") cls = "highlight";
       if (step === "RATE_LIMIT") cls = "error";
+
+      let displayTime = time || getISTTimeString();
+      if (!displayTime.includes("IST")) {
+        displayTime += " IST";
+      }
+
       line.className = `log-line ${cls}`;
-      line.innerHTML = `<span class="time">${time}</span><span class="step-tag">[${step}]</span><span class="msg">${escapeHtml(msg)}</span>`;
+      line.innerHTML = `<span class="time">${displayTime}</span><span class="step-tag">[${step}]</span><span class="msg">${escapeHtml(msg)}</span>`;
       container.appendChild(line);
       container.scrollTop = container.scrollHeight;
     }
@@ -1357,9 +1390,13 @@
       if (btnStop) btnStop.style.display = isRunning ? 'inline-flex' : 'none';
 
       if (footer) {
+        let checkTime = st.last_check_time || '';
+        if (checkTime && !checkTime.includes('IST')) {
+          checkTime += ' IST';
+        }
         footer.textContent = isRunning 
-          ? `🟢 Watcher: ACTIVE (Every 30s) • Last check: ${st.last_check_time || 'Running...'} • Scans today: ${st.total_checks_today || 0}`
-          : `⚪ Watcher: IDLE (Stopped) • Last check: ${st.last_check_time || '--'}`;
+          ? `🟢 Watcher: ACTIVE (Every 30s) • Last check: ${checkTime || 'Running...'} • Scans today: ${st.total_checks_today || 0}`
+          : `⚪ Watcher: IDLE (Stopped) • Last check: ${checkTime || '--'}`;
       }
 
       // Update Long Stay D Visa Badge
@@ -1539,6 +1576,8 @@
 
     // Initialize
     window.addEventListener("DOMContentLoaded", () => {
+      updateLiveISTClock();
+      setInterval(updateLiveISTClock, 1000);
       loadConfig();
       setupSSE();
       loadScreenshots();

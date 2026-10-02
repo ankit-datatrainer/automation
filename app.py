@@ -28,6 +28,7 @@ from flask import (
 from flask_cors import CORS
 
 from config import cfg
+from time_utils import get_ist_now, format_ist_dt, format_ist_time, format_ist_display, format_ist_date, IST
 from vfs_automation import SCREENSHOTS_DIR, VFSAutomation
 import vfs_browser
 import vfs_db
@@ -105,9 +106,10 @@ def inject_user():
                 "telegram_chat_id": user_db.get("telegram_chat_id") or session.get("telegram_chat_id"),
                 "telegram_notifications": user_db.get("telegram_notifications", 1),
                 "email_notifications": user_db.get("email_notifications", 1),
-            }
+            },
+            "server_ist_time": format_ist_time()
         }
-    return {"current_user": None}
+    return {"current_user": None, "server_ist_time": format_ist_time()}
 
 
 # =============================================================================
@@ -123,8 +125,8 @@ BOOKING_AUTOMATION_STEPS = {
 }
 
 def push_log(step: str, message: str):
-    """Callback triggered by automation to record logs and update state."""
-    timestamp = datetime.now().strftime("%H:%M:%S")
+    """Callback triggered by automation to record logs and update state in IST."""
+    timestamp = format_ist_time()
     entry = {"timestamp": timestamp, "step": step, "message": message}
 
     # Only update booking automation state if this is an actual booking automation event
@@ -580,7 +582,7 @@ def user_test_telegram():
         f"🔔 <b>Operator Telegram Ping Test</b>\n\n"
         f"👤 <b>Operator:</b> {user_db.get('full_name') or user_db.get('username')}\n"
         f"📱 <b>Chat ID:</b> <code>{chat_id}</code>\n"
-        f"📅 <b>Time:</b> <code>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
+        f"📅 <b>Time (IST):</b> <code>{format_ist_dt()}</code>\n"
         f"✅ <b>Status:</b> Telegram alerts are active and ready!"
     )
     ok, msg = vfs_notifications.send_telegram_message(bot_token, chat_id, text)
@@ -799,7 +801,7 @@ def start_automation():
     state["status"] = "RUNNING"
     state["current_step"] = "STARTING"
     state["message"] = "Starting automation session..."
-    state["started_at"] = datetime.now().strftime("%H:%M:%S")
+    state["started_at"] = format_ist_time()
     state["finished_at"] = None
 
     automation_thread = threading.Thread(target=run_worker, args=(data,), daemon=True)
