@@ -24,11 +24,12 @@
           <span class="route-tag">Bulgaria Visa Appointment Automation</span>
         </div>
       </div>
-      <div class="header-badges">
+      <!-- Target & Status Group -->
+      <div class="nav-target-group">
         {% if current_user and current_user.role == 'super_admin' %}
-        <a href="/admin" class="badge-pill admin-nav-pill" style="text-decoration:none; background:rgba(168,85,247,0.18); border:1px solid rgba(168,85,247,0.45); color:#d8b4fe;" title="Open Super Admin Center">
-          <span class="pill-dot" style="background:#c084fc;"></span>
-          <strong style="color:#f3e8ff;">👑 Super Admin</strong>
+        <a href="/admin" class="badge-pill admin-nav-pill" title="Open Super Admin Center">
+          <span class="pill-dot admin-dot"></span>
+          <strong>👑 Super Admin</strong>
         </a>
         {% endif %}
         <div class="badge-pill city-pill">
@@ -41,8 +42,8 @@
           <strong id="badgeCategory">{{ cfg.VISA_CATEGORY }}</strong>
         </div>
 
-        <div class="badge-pill" id="badgeIstClock" style="color: #38bdf8; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; font-weight: 700;" title="Indian Standard Time (IST, UTC+05:30)">
-          <span>🕒 <span id="clockIstTime">{{ server_ist_time or '--:--:-- IST' }}</span></span>
+        <div class="badge-pill clock-pill" id="badgeIstClock" title="Indian Standard Time (IST, UTC+05:30)">
+          <span class="clock-content">🕒 <span id="clockIstTime">{{ server_ist_time or '--:--:-- IST' }}</span></span>
         </div>
 
         <div class="status-badge" id="statusBadge">
@@ -56,23 +57,27 @@
           </svg>
           <span>Settings</span>
         </button>
-        {% if current_user %}
-        <div class="badge-pill" style="color:#c7d2fe; background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3); font-weight:600;">
-          <span>👤 {{ current_user.full_name or current_user.username }}</span>
+      </div>
+
+      <!-- User & Auth Group -->
+      {% if current_user %}
+      <div class="nav-user-group">
+        <div class="badge-pill user-badge-pill" title="Logged in as {{ current_user.full_name or current_user.username }}">
+          <span class="user-name-text">👤 {{ current_user.full_name or current_user.username }}</span>
           {% if current_user.role == 'super_admin' %}
-          <span style="background:rgba(245,158,11,0.25); color:#fbbf24; padding:1px 6px; border-radius:4px; font-size:0.7rem; font-weight:800; margin-left:4px;">ADMIN</span>
+          <span class="role-tag-badge admin">ADMIN</span>
           {% else %}
-          <span style="background:rgba(59,130,246,0.25); color:#60a5fa; padding:1px 6px; border-radius:4px; font-size:0.7rem; font-weight:800; margin-left:4px;">OPERATOR</span>
+          <span class="role-tag-badge operator">OPERATOR</span>
           {% endif %}
         </div>
-        <div class="badge-pill" id="navTelegramPill" style="cursor:pointer; color:#38bdf8; background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.3);" onclick="openOperatorNotificationModal()" title="Click to configure Telegram Alerts">
-          <span>📱 Telegram: {{ current_user.telegram_chat_id or 'Not Set' }} {% if current_user.telegram_chat_id %}🔔{% endif %}</span>
+        <div class="badge-pill telegram-nav-pill" id="navTelegramPill" onclick="openOperatorNotificationModal()" title="Click to configure Telegram Alerts">
+          <span>📱 Telegram: <strong>{{ current_user.telegram_chat_id or 'Not Set' }}</strong>{% if current_user.telegram_chat_id %} <span class="pill-dot active-dot" style="margin-left:2px;"></span>{% endif %}</span>
         </div>
-        <a href="/logout" class="badge-pill" style="text-decoration:none; color:#fca5a5; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3);" title="Sign Out">
+        <a href="/logout" class="badge-pill logout-pill" title="Sign Out">
           <span>Sign Out</span>
         </a>
-        {% endif %}
       </div>
+      {% endif %}
     </header>
 
     <!-- Main Dashboard Grid -->
