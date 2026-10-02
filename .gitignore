@@ -13,6 +13,7 @@ env/
 .env.local
 
 # Runtime data & browser profiles
+screenshots/
 data/screenshots/
 data/*profile*/
 data/browser_profile/

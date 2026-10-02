@@ -93,13 +93,18 @@ def super_admin_required(f):
 def inject_user():
     """Make current user info available in all Jinja templates."""
     if session.get("user_id"):
+        uid = session.get("user_id")
+        user_db = vfs_db.get_user_by_id(uid) or {}
         return {
             "current_user": {
-                "id": session.get("user_id"),
+                "id": uid,
                 "username": session.get("username"),
-                "full_name": session.get("full_name") or session.get("username"),
-                "email": session.get("email"),
+                "full_name": user_db.get("full_name") or session.get("full_name") or session.get("username"),
+                "email": user_db.get("email") or session.get("email"),
                 "role": session.get("role"),
+                "telegram_chat_id": user_db.get("telegram_chat_id") or session.get("telegram_chat_id"),
+                "telegram_notifications": user_db.get("telegram_notifications", 1),
+                "email_notifications": user_db.get("email_notifications", 1),
             }
         }
     return {"current_user": None}
@@ -109,25 +114,44 @@ def inject_user():
 # LOGGING & WORKER THREAD
 # =============================================================================
 
+# Set of step names that belong strictly to the browser booking automation
+BOOKING_AUTOMATION_STEPS = {
+    "STARTING", "INIT", "LOGIN", "OTP", "DASHBOARD", 
+    "APPLICATION_DETAIL", "FORM", "YOUR_DETAILS", "APPLICANT", 
+    "BOOK_APPOINTMENT", "SLOT", "SERVICES", "PAYMENT", 
+    "REVIEW", "APPOINTMENT_CONFIRMATION"
+}
+
 def push_log(step: str, message: str):
     """Callback triggered by automation to record logs and update state."""
     timestamp = datetime.now().strftime("%H:%M:%S")
     entry = {"timestamp": timestamp, "step": step, "message": message}
-    state["current_step"] = step
-    state["message"] = message
-    state["last_update"] = time.time()
 
-    if step == "COMPLETED":
-        state["status"] = "COMPLETED"
-        state["finished_at"] = timestamp
-    elif step == "ERROR":
-        state["status"] = "ERROR"
-        state["finished_at"] = timestamp
-    elif step == "STOPPED":
-        state["status"] = "STOPPED"
-        state["finished_at"] = timestamp
-    else:
+    # Only update booking automation state if this is an actual booking automation event
+    if step in BOOKING_AUTOMATION_STEPS:
+        state["current_step"] = step
+        state["message"] = message
         state["status"] = "RUNNING"
+        state["last_update"] = time.time()
+    elif step == "COMPLETED":
+        state["current_step"] = step
+        state["status"] = "COMPLETED"
+        state["message"] = message
+        state["finished_at"] = timestamp
+        state["last_update"] = time.time()
+    elif step == "ERROR":
+        state["current_step"] = step
+        state["status"] = "ERROR"
+        state["message"] = message
+        state["finished_at"] = timestamp
+        state["last_update"] = time.time()
+    elif step in ("STOPPED", "STOPPING"):
+        state["status"] = "STOPPED"
+        state["message"] = message
+        state["finished_at"] = timestamp
+        state["last_update"] = time.time()
+    # Administrative & background events (AUTH, MONITOR, ADMIN, CONFIG, DATABASE, NOTIFY, USER)
+    # do NOT touch the booking automation's state or stepper.
 
     recent_logs.append(entry)
     if len(recent_logs) > 400:
@@ -535,6 +559,35 @@ def user_update_own_notifications():
         push_log("USER", f"Operator updated notification settings (Telegram Chat ID: {chat_id or 'none'}).")
         return jsonify({"success": True, "message": msg})
     return jsonify({"success": False, "message": msg}), 400
+
+
+@app.route("/api/user/test_telegram", methods=["POST"])
+@login_required
+def user_test_telegram():
+    """One-click Telegram ping for the logged-in operator."""
+    uid = session.get("user_id")
+    user_db = vfs_db.get_user_by_id(uid) or {}
+    chat_id = user_db.get("telegram_chat_id")
+    if not chat_id:
+        return jsonify({"success": False, "message": "No Telegram Chat ID configured for your account. Please set it in Alert Settings."}), 400
+
+    settings = vfs_db.get_slot_monitor_settings()
+    bot_token = settings.get("telegram_bot_token") or os.getenv("TELEGRAM_BOT_TOKEN", "") or cfg.TELEGRAM_BOT_TOKEN
+    if not bot_token:
+        return jsonify({"success": False, "message": "Telegram Bot Token is not configured."}), 400
+
+    text = (
+        f"🔔 <b>Operator Telegram Ping Test</b>\n\n"
+        f"👤 <b>Operator:</b> {user_db.get('full_name') or user_db.get('username')}\n"
+        f"📱 <b>Chat ID:</b> <code>{chat_id}</code>\n"
+        f"📅 <b>Time:</b> <code>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
+        f"✅ <b>Status:</b> Telegram alerts are active and ready!"
+    )
+    ok, msg = vfs_notifications.send_telegram_message(bot_token, chat_id, text)
+    if not ok:
+        return jsonify({"success": False, "message": f"Telegram test failed: {msg}"}), 400
+    return jsonify({"success": True, "message": f"Telegram ping delivered successfully to Chat ID {chat_id}!"})
+
 
 
 # =============================================================================
