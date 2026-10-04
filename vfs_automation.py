@@ -131,6 +131,50 @@ class VFSAutomation:
             self.report("ERROR", f"Failed entering manual OTP: {e}")
             return False
 
+    def interact(self, action: str, data: dict) -> bool:
+        """Execute interactive operator input (mouse, keyboard, scroll) directly on the live Playwright browser page."""
+        if not self.page:
+            return False
+        try:
+            if action == "click":
+                x = int(data.get("x", 0))
+                y = int(data.get("y", 0))
+                button = data.get("button", "left")
+                self.page.mouse.click(x, y, button=button)
+                log.info(f"Interactive browser {button}-click dispatched to ({x}, {y})")
+            elif action == "dblclick":
+                x = int(data.get("x", 0))
+                y = int(data.get("y", 0))
+                self.page.mouse.dblclick(x, y)
+                log.info(f"Interactive browser double-click dispatched to ({x}, {y})")
+            elif action == "type":
+                text = str(data.get("text", ""))
+                if text:
+                    self.page.keyboard.type(text, delay=20)
+                    log.info(f"Interactive browser text typed ({len(text)} chars)")
+            elif action == "press":
+                key = str(data.get("key", ""))
+                if key:
+                    self.page.keyboard.press(key)
+                    log.info(f"Interactive browser key pressed: '{key}'")
+            elif action == "scroll":
+                dx = int(data.get("delta_x", 0))
+                dy = int(data.get("delta_y", 0))
+                self.page.mouse.wheel(dx, dy)
+            elif action == "navigate":
+                url = data.get("url")
+                if url:
+                    self.page.goto(url, wait_until="domcontentloaded")
+                    log.info(f"Interactive browser navigated to: {url}")
+            
+            # Immediately capture fresh frame to data/screenshots/latest.png so live view updates instantaneously
+            self.take_screenshot("live_view")
+            return True
+        except Exception as e:
+            log.error(f"Error during browser interaction ({action}): {e}")
+            return False
+
+
     def take_screenshot(self, name: str):
         """Capture screenshot to data/screenshots directory and update latest.png with single encoding."""
         if self.page:

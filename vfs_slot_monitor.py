@@ -19,7 +19,7 @@ import threading
 import time
 from datetime import datetime, date
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from playwright.sync_api import sync_playwright, BrowserContext, Page, Playwright
 
@@ -35,12 +35,25 @@ SCREENSHOTS_DIR = Path(__file__).resolve().parent / "data" / "screenshots"
 SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def is_d_visa_category(cat: str) -> bool:
+    """Return True if category refers to Long Stay D-Visa."""
+    c = str(cat or "").strip().lower()
+    return any(k in c for k in ["d visa", "long stay", "type d", "national visa"])
+
+
+def is_work_category(cat: str) -> bool:
+    """Return True if category refers to Work / Employment / Seasonal Worker."""
+    c = str(cat or "").strip().lower()
+    return any(k in c for k in ["work", "seasonal worker", "employment", "job"])
+
+
 class VFSSlotMonitor:
     def __init__(self):
         self.is_running = False
         self.thread: Optional[threading.Thread] = None
         self.stop_event = threading.Event()
         self.lock = threading.Lock()
+        self.auto_booking_callback: Optional[Callable[[str, str], None]] = None
 
         # In-memory runtime state
         self.last_check_time: Optional[datetime] = None
@@ -118,6 +131,11 @@ class VFSSlotMonitor:
             except Exception:
                 pass
             log.info("VFS Slot Monitor worker requested to stop.")
+
+    def set_auto_booking_callback(self, cb: Callable[[str, str], None]):
+        """Register callback function to be executed automatically when a D-Visa slot is detected."""
+        self.auto_booking_callback = cb
+        log.info("Registered D-Visa auto-booking trigger callback handler.")
 
     def _monitor_loop(self):
         """Continuous 24/7 checking loop."""
@@ -342,6 +360,51 @@ class VFSSlotMonitor:
                     screenshot_path=screenshot_path
                 )
                 log.info(f"Alert dispatch summary: {alert_res}")
+
+        # -------------------------------------------------------------
+        # D-VISA & WORK APPOINTMENT AUTO-TRIGGER LOGIC
+        # -------------------------------------------------------------
+        # Check if D-visa has an available date, or if work is available and D-visa is available
+        d_visa_available_date = None
+        d_visa_target_name = "Long Stay D visa"
+        work_slot_available = False
+
+        for c_name, c_val in self.last_status.items():
+            val_clean = str(c_val or "").strip()
+            val_is_avail = (
+                "no date" not in val_clean.lower()
+                and val_clean not in ("Checking...", "Unknown", "Error checking", "")
+                and len(val_clean) > 2
+            )
+            if is_d_visa_category(c_name) and val_is_avail:
+                d_visa_available_date = val_clean
+                d_visa_target_name = c_name
+            if is_work_category(c_name) and val_is_avail:
+                work_slot_available = True
+
+        # Also check direct target category if matching D-visa
+        if not d_visa_available_date and is_available and is_d_visa_category(target_category):
+            d_visa_available_date = target_status
+            d_visa_target_name = target_category
+
+        # Check settings for auto_book_d_visa
+        try:
+            cur_settings = vfs_db.get_slot_monitor_settings()
+            auto_book_enabled = bool(cur_settings.get("auto_book_d_visa", 1))
+        except Exception:
+            auto_book_enabled = True
+
+        if auto_book_enabled and d_visa_available_date:
+            log.info(
+                f"🚨 [D-VISA TRIGGER ACTIVATED] D-Visa slot available ('{d_visa_available_date}')! "
+                f"Work category available: {work_slot_available}. Launching booking automation immediately!"
+            )
+            if self.auto_booking_callback:
+                try:
+                    self.auto_booking_callback(d_visa_target_name, d_visa_available_date)
+                    log.info(f"⚡ [D-VISA TRIGGER] Auto-booking successfully triggered for '{d_visa_target_name}'!")
+                except Exception as e:
+                    log.error(f"Error executing auto_booking_callback: {e}")
 
         return {
             "success": True,

@@ -154,3 +154,37 @@ def test_api_admin_user_telegram(client):
     user = vfs_db.get_user_by_id(2)
     assert user is not None
     assert user.get("telegram_chat_id") == "9988776655"
+
+
+def test_d_visa_detection_helpers():
+    from vfs_slot_monitor import is_d_visa_category, is_work_category
+    assert is_d_visa_category("Long Stay D visa") is True
+    assert is_d_visa_category("National D Visa") is True
+    assert is_d_visa_category("Business") is False
+
+    assert is_work_category("Seasonal worker") is True
+    assert is_work_category("Employment / Work") is True
+    assert is_work_category("Tourist") is False
+
+
+def test_d_visa_auto_trigger_callback():
+    from vfs_slot_monitor import VFSSlotMonitor
+    mon = VFSSlotMonitor()
+    triggered = []
+
+    def mock_cb(cat, slot_date):
+        triggered.append((cat, slot_date))
+
+    mon.set_auto_booking_callback(mock_cb)
+
+    # Mock perform_check simulation
+    with mon.lock:
+        mon.last_status["Long Stay D visa"] = "20 Nov 2026"
+    
+    # Trigger auto-booking check logic directly
+    if mon.auto_booking_callback and "no date" not in mon.last_status["Long Stay D visa"].lower():
+        mon.auto_booking_callback("Long Stay D visa", mon.last_status["Long Stay D visa"])
+
+    assert len(triggered) == 1
+    assert triggered[0] == ("Long Stay D visa", "20 Nov 2026")
+

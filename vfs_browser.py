@@ -268,6 +268,7 @@ def launch_stealth_browser(
         "--start-maximized",
         "--no-default-browser-check",
         "--no-first-run",
+        "--remote-debugging-port=9222",
         "--disable-blink-features=AutomationControlled",
         "--disable-infobars",
         "--disable-background-timer-throttling",

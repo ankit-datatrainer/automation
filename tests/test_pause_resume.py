@@ -79,3 +79,31 @@ def test_bring_to_front_endpoint(auth_client):
     assert rv.status_code == 200
     data = rv.get_json()
     assert data["success"] is True
+
+
+def test_browser_interact_endpoint(auth_client):
+    mock_automation = MagicMock()
+    mock_automation.page = MagicMock()
+    mock_automation.interact.return_value = True
+    app_module.active_automation = mock_automation
+
+    # Test click
+    rv = auth_client.post("/api/browser/interact", json={"action": "click", "x": 100, "y": 200, "button": "left"})
+    assert rv.status_code == 200
+    data = rv.get_json()
+    assert data["success"] is True
+    mock_automation.interact.assert_called_with("click", {"action": "click", "x": 100, "y": 200, "button": "left"})
+
+    # Test typing
+    rv_type = auth_client.post("/api/browser/interact", json={"action": "type", "text": "test input"})
+    assert rv_type.status_code == 200
+    assert rv_type.get_json()["success"] is True
+
+
+def test_browser_remote_info_endpoint(auth_client):
+    rv = auth_client.get("/api/browser/remote_info")
+    assert rv.status_code == 200
+    data = rv.get_json()
+    assert data["success"] is True
+    assert "remote_tab_url" in data
+

@@ -353,9 +353,31 @@
             </div>
           </div>
 
-          <!-- Screen Canvas Container (Crystal Clear - Zero Blur) -->
-          <div class="screen-viewport" onclick="expandLiveScreen()" title="Click to view crystal clear enlarged screen">
-            <img id="liveScreenImg" src="/api/live_screen" alt="Live Browser View" onerror="handleLiveImgError(this)" onload="handleLiveImgLoaded(this)">
+          <!-- Direct Interactive Control Toolbar -->
+          <div class="interactive-index-toolbar" style="background:#0b1120; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 7px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 260px;">
+              <span style="font-size: 0.78rem; color: #10b981; font-weight: 700; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
+                <span style="width: 7px; height: 7px; background: #10b981; border-radius: 50%; box-shadow: 0 0 6px #10b981; display: inline-block;"></span>
+                Live Control:
+              </span>
+              <input type="text" id="indexDirectTextInput" placeholder="Click any input on screen, then type or paste text/card details..." style="flex: 1; background: #0f172a; border: 1px solid #475569; color: #fff; border-radius: 6px; padding: 5px 10px; font-size: 0.8rem;" onkeydown="if(event.key==='Enter') sendIndexDirectText()">
+              <button onclick="sendIndexDirectText()" class="btn btn-primary" style="padding: 4px 10px; font-size: 0.78rem;" title="Send typed text directly to focused browser element">⌨️ Type</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+              <button onclick="sendIndexSpecialKey('Enter')" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.78rem;" title="Send Enter">↵ Enter</button>
+              <button onclick="sendIndexSpecialKey('Tab')" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.78rem;" title="Send Tab">⇥ Tab</button>
+              <button onclick="sendIndexSpecialKey('Backspace')" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.78rem;" title="Send Backspace">⌫</button>
+              <button onclick="bringBrowserToFront(true)" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.78rem; background:#4f46e5; color:#fff;" title="Open live screen in a dedicated new tab">🖥️ New Tab</button>
+              <button onclick="expandLiveScreen()" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.78rem;" title="Enlarge Screen">⛶</button>
+            </div>
+          </div>
+
+          <!-- Screen Canvas Container (Interactive Live Controller) -->
+          <div class="screen-viewport" id="indexScreenViewport" tabindex="0" oncontextmenu="return false;" title="Click anywhere to interact with the real browser">
+            <div id="indexViewportInteractiveContainer" style="position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center;" oncontextmenu="return false;">
+              <img id="liveScreenImg" src="/api/live_screen" alt="Live Interactive Browser View" onerror="handleLiveImgError(this)" onload="handleLiveImgLoaded(this)" ondragstart="return false;" oncontextmenu="return false;" onclick="handleIndexViewportClick(event)" ondblclick="handleIndexViewportDblClick(event)">
+              <div id="indexRippleLayer" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; overflow:hidden;"></div>
+            </div>
             <div class="screen-overlay" id="screenOverlay">
               <div class="overlay-spinner" id="overlaySpinner" style="display:none;"></div>
               <span id="overlayText">Click 'Start Automation' to launch browser</span>
@@ -600,11 +622,11 @@
           <div class="form-row">
             <div class="form-group col-6">
               <label>Appointment Category*</label>
-              <input type="text" name="VISA_CATEGORY" id="cfg_category" value="Business" required>
+              <input type="text" name="VISA_CATEGORY" id="cfg_category" value="Long Stay D visa" required>
             </div>
             <div class="form-group col-6">
               <label>Sub-Category*</label>
-              <input type="text" name="VISA_SUB_CATEGORY" id="cfg_sub_category" value="Business Visa" required>
+              <input type="text" name="VISA_SUB_CATEGORY" id="cfg_sub_category" value="Long Stay D visa" required>
             </div>
           </div>
 
@@ -727,8 +749,8 @@
         renderApplicantUI();
 
         document.getElementById("cfg_target_city").value = (cfg.TARGET_CITY || "delhi").toLowerCase();
-        document.getElementById("cfg_category").value = cfg.VISA_CATEGORY || "Business";
-        document.getElementById("cfg_sub_category").value = cfg.VISA_SUB_CATEGORY || "Business Visa";
+        document.getElementById("cfg_category").value = cfg.VISA_CATEGORY || "Long Stay D visa";
+        document.getElementById("cfg_sub_category").value = cfg.VISA_SUB_CATEGORY || "Long Stay D visa";
         document.getElementById("cfg_portal_url").value = cfg.PORTAL_URL || "";
 
         document.getElementById("cfg_vfs_email").value = cfg.VFS_EMAIL || "";
@@ -740,10 +762,10 @@
 
         // Update target badges
         document.getElementById("badgeCity").innerText = (cfg.TARGET_CITY || "delhi").toUpperCase();
-        document.getElementById("badgeCategory").innerText = cfg.VISA_CATEGORY || "Business";
+        document.getElementById("badgeCategory").innerText = cfg.VISA_CATEGORY || "Long Stay D visa";
         document.getElementById("dispCentre").innerText = "Bulgaria VAC, " + (cfg.TARGET_CITY || "delhi").toUpperCase();
-        document.getElementById("dispCategory").innerText = cfg.VISA_CATEGORY || "Business";
-        document.getElementById("dispSubCategory").innerText = cfg.VISA_SUB_CATEGORY || "Business Visa";
+        document.getElementById("dispCategory").innerText = cfg.VISA_CATEGORY || "Long Stay D visa";
+        document.getElementById("dispSubCategory").innerText = cfg.VISA_SUB_CATEGORY || "Long Stay D visa";
         document.getElementById("labelBrowser").innerHTML = `Browser: <strong>${(cfg.BROWSER_CHANNEL || 'brave').toUpperCase()}</strong>`;
         document.getElementById("labelMode").innerHTML = `<strong>${cfg.HEADLESS ? 'Headless (VPS)' : 'Visible Window'}</strong>`;
         document.getElementById("dispBrowserMode").innerText = cfg.HEADLESS ? "Headless (VPS Mode)" : "Visible Browser";
@@ -991,14 +1013,127 @@
       }
     }
 
-    async function bringBrowserToFront() {
+    async function bringBrowserToFront(openNewTab = true) {
       try {
-        await fetch("/api/bring_to_front", { method: "POST" });
+        const res = await fetch("/api/bring_to_front", { method: "POST" });
+        const data = await res.json();
+        if (openNewTab) {
+          if (data && data.devtools_url) {
+            window.open(data.devtools_url, "_blank");
+          } else {
+            window.open("/live", "_blank");
+          }
+        }
       } catch (err) {
         console.error("bring_to_front error:", err);
+        if (openNewTab) {
+          window.open("/live", "_blank");
+        }
       }
     }
 
+    // Interactive Remote Control Handlers for Index
+    function showIndexClickRipple(clientX, clientY) {
+      const container = document.getElementById("indexViewportInteractiveContainer");
+      const layer = document.getElementById("indexRippleLayer");
+      if (!container || !layer) return;
+      const rect = container.getBoundingClientRect();
+      const ripple = document.createElement("div");
+      ripple.className = "click-ripple";
+      ripple.style.left = (clientX - rect.left) + "px";
+      ripple.style.top = (clientY - rect.top) + "px";
+      layer.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 500);
+    }
+
+    async function dispatchIndexInteraction(payload) {
+      try {
+        const res = await fetch("/api/browser/interact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        setTimeout(fetchNextLiveFrame, 120);
+        setTimeout(fetchNextLiveFrame, 350);
+        return d.success;
+      } catch (e) {
+        console.error("Index interaction error:", e);
+        return false;
+      }
+    }
+
+    function handleIndexViewportClick(e) {
+      e.preventDefault();
+      const img = document.getElementById("liveScreenImg");
+      if (!img || !img.complete || img.naturalWidth === 0) return;
+      const rect = img.getBoundingClientRect();
+      const scaleX = img.naturalWidth / rect.width;
+      const scaleY = img.naturalHeight / rect.height;
+      const x = Math.round((e.clientX - rect.left) * scaleX);
+      const y = Math.round((e.clientY - rect.top) * scaleY);
+      const button = e.button === 2 ? "right" : (e.button === 1 ? "middle" : "left");
+      
+      showIndexClickRipple(e.clientX, e.clientY);
+      dispatchIndexInteraction({ action: "click", x, y, button });
+    }
+
+    function handleIndexViewportDblClick(e) {
+      e.preventDefault();
+      const img = document.getElementById("liveScreenImg");
+      if (!img || !img.complete || img.naturalWidth === 0) return;
+      const rect = img.getBoundingClientRect();
+      const scaleX = img.naturalWidth / rect.width;
+      const scaleY = img.naturalHeight / rect.height;
+      const x = Math.round((e.clientX - rect.left) * scaleX);
+      const y = Math.round((e.clientY - rect.top) * scaleY);
+      
+      showIndexClickRipple(e.clientX, e.clientY);
+      dispatchIndexInteraction({ action: "dblclick", x, y });
+    }
+
+    async function sendIndexDirectText() {
+      const input = document.getElementById("indexDirectTextInput");
+      const val = (input.value || "").trim();
+      if (!val) {
+        input.focus();
+        return;
+      }
+      const ok = await dispatchIndexInteraction({ action: "type", text: val });
+      if (ok) {
+        input.value = "";
+      }
+    }
+
+    function sendIndexSpecialKey(keyName) {
+      dispatchIndexInteraction({ action: "press", key: keyName });
+    }
+
+    // Wheel and keyboard listener for index viewport
+    window.addEventListener("DOMContentLoaded", () => {
+      const vp = document.getElementById("indexScreenViewport");
+      if (vp) {
+        vp.addEventListener("wheel", (e) => {
+          e.preventDefault();
+          dispatchIndexInteraction({
+            action: "scroll",
+            delta_x: Math.round(e.deltaX),
+            delta_y: Math.round(e.deltaY)
+          });
+        }, { passive: false });
+
+        vp.addEventListener("keydown", (e) => {
+          if (document.activeElement && document.activeElement.tagName === "INPUT") return;
+          if (["Tab", "Enter", "Backspace", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+            e.preventDefault();
+            sendIndexSpecialKey(e.key);
+          } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            dispatchIndexInteraction({ action: "type", text: e.key });
+          }
+        });
+      }
+    });
 
     // Stop Automation API
     async function stopAutomation() {

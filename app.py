@@ -190,6 +190,45 @@ def run_worker(overrides: Optional[dict] = None):
             state["status"] = "COMPLETED"
 
 
+def trigger_auto_booking_d_visa(category: str, slot_date: str):
+    """Auto-trigger booking automation immediately when a D-Visa slot is detected."""
+    global automation_thread, active_automation
+    if state["status"] in ("RUNNING", "STARTING") and automation_thread and automation_thread.is_alive():
+        log.info(f"Auto-booking trigger skipped: Automation already running.")
+        return
+
+    push_log("TRIGGER", f"🚨 D-VISA SLOT AVAILABLE ({slot_date})! Starting instant booking automation...")
+    state["status"] = "RUNNING"
+    state["current_step"] = "STARTING"
+    state["message"] = f"Auto-booking started for {category} (Detected Date: {slot_date})"
+    state["started_at"] = format_ist_time()
+    state["finished_at"] = None
+
+    # Target D-visa category
+    cfg.VISA_CATEGORY = category or "Long Stay D visa"
+    cfg.VISA_SUB_CATEGORY = category or "Long Stay D visa"
+
+    automation_thread = threading.Thread(
+        target=run_worker,
+        args=({"VISA_CATEGORY": cfg.VISA_CATEGORY, "auto_triggered": True, "slot_date": slot_date},),
+        daemon=True
+    )
+    automation_thread.start()
+
+    def deferred_front():
+        time.sleep(2.0)
+        try:
+            vfs_browser.bring_browser_to_front()
+        except Exception:
+            pass
+
+    threading.Thread(target=deferred_front, daemon=True).start()
+
+
+# Register slot watcher auto-booking trigger callback
+slot_monitor.set_auto_booking_callback(trigger_auto_booking_d_visa)
+
+
 # =============================================================================
 # AUTH ROUTES
 # =============================================================================
@@ -903,9 +942,90 @@ def bring_to_front_api():
     try:
         page = active_automation.page if active_automation else None
         vfs_browser.bring_browser_to_front(page)
-        return jsonify({"success": True, "message": "Real browser window brought to front and maximized."})
+        
+        # Check DevTools URL if available
+        devtools_url = None
+        try:
+            import urllib.request
+            with urllib.request.urlopen("http://127.0.0.1:9222/json", timeout=0.5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data and isinstance(data, list):
+                    devtools_url = data[0].get("devtoolsFrontendUrl")
+        except Exception:
+            pass
+
+        return jsonify({
+            "success": True,
+            "message": "Real browser window brought to front and maximized.",
+            "devtools_url": devtools_url,
+            "remote_tab_url": "/live"
+        })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/browser/interact", methods=["POST"])
+@login_required
+def browser_interact():
+    """Execute direct user click, typing, or scrolling on the active browser page."""
+    global active_automation
+    if not active_automation or not active_automation.page:
+        return jsonify({"success": False, "message": "No active browser session running."}), 400
+
+    data = request.get_json(force=True, silent=True) or {}
+    action = data.get("action", "click")
+    ok = active_automation.interact(action, data)
+    return jsonify({"success": ok, "action": action})
+
+
+@app.route("/api/browser/remote_info", methods=["GET"])
+@login_required
+def browser_remote_info():
+    """Retrieve remote DevTools info and active browser status for new tab control."""
+    global active_automation
+    has_page = bool(active_automation and active_automation.page)
+    active_url = ""
+    title = ""
+    if has_page:
+        try:
+            raw_url = active_automation.page.url
+            if callable(raw_url):
+                raw_url = raw_url()
+            active_url = str(raw_url) if not hasattr(raw_url, "_mock_name") else "https://visa.vfsglobal.com/ind/en/bgr"
+        except Exception:
+            active_url = ""
+        try:
+            raw_title = active_automation.page.title
+            if callable(raw_title):
+                raw_title = raw_title()
+            title = str(raw_title) if not hasattr(raw_title, "_mock_name") else "VFS Global"
+        except Exception:
+            title = ""
+
+    # Check if local CDP 9222 is answering
+    cdp_active = False
+    devtools_url = None
+    try:
+        import urllib.request
+        with urllib.request.urlopen("http://127.0.0.1:9222/json", timeout=0.8) as resp:
+            d = json.loads(resp.read().decode("utf-8"))
+            if d and isinstance(d, list):
+                cdp_active = True
+                devtools_url = d[0].get("devtoolsFrontendUrl")
+    except Exception:
+        pass
+
+    return jsonify({
+        "success": True,
+        "is_running": state["status"] in ("RUNNING", "STARTING", "PAUSED"),
+        "status": state["status"],
+        "active_url": active_url,
+        "title": title,
+        "cdp_active": cdp_active,
+        "devtools_url": devtools_url,
+        "remote_tab_url": "/live"
+    })
+
 
 
 @app.route("/api/live_screen")

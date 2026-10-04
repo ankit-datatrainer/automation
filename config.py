@@ -22,8 +22,8 @@ class Config:
 
     # Target Route
     TARGET_CITY: str = os.getenv("TARGET_CITY", "delhi").lower()
-    VISA_CATEGORY: str = os.getenv("VISA_CATEGORY", "Business")
-    VISA_SUB_CATEGORY: str = os.getenv("VISA_SUB_CATEGORY", "Business Visa")
+    VISA_CATEGORY: str = os.getenv("VISA_CATEGORY", "Long Stay D visa")
+    VISA_SUB_CATEGORY: str = os.getenv("VISA_SUB_CATEGORY", "Long Stay D visa")
     PORTAL_URL: str = os.getenv("PORTAL_URL", "https://visa.vfsglobal.com/ind/en/bgr").rstrip("/")
 
     # Derived URLs

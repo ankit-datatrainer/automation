@@ -229,6 +229,7 @@ def init_sqlite_db():
                 email_enabled INTEGER DEFAULT 1,
                 daily_report_time TEXT DEFAULT '22:00',
                 daily_report_enabled INTEGER DEFAULT 1,
+                auto_book_d_visa INTEGER DEFAULT 1,
                 is_running INTEGER DEFAULT 0,
                 last_checked_at TEXT,
                 last_status_message TEXT,
@@ -297,6 +298,12 @@ def init_sqlite_db():
                 cfg.TELEGRAM_CHAT_ID or "7815919062",
                 cfg.VFS_EMAIL or ""
             ))
+
+        # Schema migration: Add auto_book_d_visa column if missing
+        try:
+            cur.execute("ALTER TABLE slot_monitor_settings ADD COLUMN auto_book_d_visa INTEGER DEFAULT 1;")
+        except Exception:
+            pass
 
         conn.commit()
         conn.close()
@@ -535,6 +542,15 @@ def init_db() -> bool:
                     log.info("Migrated users table with Telegram and Email notification columns.")
             except Exception as e:
                 log.debug(f"Users table migration note: {e}")
+
+            # Schema Migration: Add auto_book_d_visa to slot_monitor_settings if missing
+            try:
+                cur.execute("SHOW COLUMNS FROM slot_monitor_settings LIKE 'auto_book_d_visa'")
+                if not cur.fetchone():
+                    cur.execute("ALTER TABLE slot_monitor_settings ADD COLUMN auto_book_d_visa TINYINT(1) DEFAULT 1 AFTER daily_report_enabled;")
+                    log.info("Migrated slot_monitor_settings table with auto_book_d_visa column.")
+            except Exception as e:
+                log.debug(f"slot_monitor_settings migration note: {e}")
 
             # Ensure row 1 in slot_monitor_settings exists
             cur.execute("SELECT id FROM slot_monitor_settings WHERE id = 1")
@@ -1042,6 +1058,7 @@ def get_slot_monitor_settings() -> Dict[str, Any]:
         "email_enabled": 1,
         "daily_report_time": "22:00",
         "daily_report_enabled": 1,
+        "auto_book_d_visa": 1,
         "is_running": 0,
         "last_checked_at": None,
         "last_status_message": None,
@@ -1063,35 +1080,69 @@ def get_slot_monitor_settings() -> Dict[str, Any]:
 
 
 def update_slot_monitor_settings(data: Dict[str, Any]) -> Tuple[bool, str]:
-    """Update slot monitor settings in MySQL."""
+    """Update slot monitor settings in MySQL/SQLite."""
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE slot_monitor_settings SET
-                    target_centre = %s,
-                    target_category = %s,
-                    check_interval_seconds = %s,
-                    telegram_bot_token = %s,
-                    telegram_chat_id = %s,
-                    telegram_enabled = %s,
-                    notify_email = %s,
-                    email_enabled = %s,
-                    daily_report_time = %s,
-                    daily_report_enabled = %s
-                WHERE id = 1
-            """, (
-                data.get("target_centre", "Bulgaria Visa Application Center ,New Delhi"),
-                data.get("target_category", "Long Stay D visa"),
-                int(data.get("check_interval_seconds", 30)),
-                data.get("telegram_bot_token", "").strip(),
-                str(data.get("telegram_chat_id", "")).strip(),
-                1 if str(data.get("telegram_enabled", "true")).lower() in ("true", "1") else 0,
-                data.get("notify_email", "").strip(),
-                1 if str(data.get("email_enabled", "true")).lower() in ("true", "1") else 0,
-                data.get("daily_report_time", "22:00").strip(),
-                1 if str(data.get("daily_report_enabled", "true")).lower() in ("true", "1") else 0
-            ))
+            try:
+                cur.execute("""
+                    UPDATE slot_monitor_settings SET
+                        target_centre = %s,
+                        target_category = %s,
+                        check_interval_seconds = %s,
+                        telegram_bot_token = %s,
+                        telegram_chat_id = %s,
+                        telegram_enabled = %s,
+                        notify_email = %s,
+                        email_enabled = %s,
+                        daily_report_time = %s,
+                        daily_report_enabled = %s,
+                        auto_book_d_visa = %s
+                    WHERE id = 1
+                """, (
+                    data.get("target_centre", "Bulgaria Visa Application Center ,New Delhi"),
+                    data.get("target_category", "Long Stay D visa"),
+                    int(data.get("check_interval_seconds", 30)),
+                    data.get("telegram_bot_token", "").strip(),
+                    str(data.get("telegram_chat_id", "")).strip(),
+                    1 if str(data.get("telegram_enabled", "true")).lower() in ("true", "1") else 0,
+                    data.get("notify_email", "").strip(),
+                    1 if str(data.get("email_enabled", "true")).lower() in ("true", "1") else 0,
+                    data.get("daily_report_time", "22:00").strip(),
+                    1 if str(data.get("daily_report_enabled", "true")).lower() in ("true", "1") else 0,
+                    1 if str(data.get("auto_book_d_visa", "true")).lower() in ("true", "1") else 0
+                ))
+            except Exception:
+                # Add column if not present in remote MySQL, then execute
+                try:
+                    cur.execute("ALTER TABLE slot_monitor_settings ADD COLUMN auto_book_d_visa TINYINT(1) DEFAULT 1;")
+                except Exception:
+                    pass
+                cur.execute("""
+                    UPDATE slot_monitor_settings SET
+                        target_centre = %s,
+                        target_category = %s,
+                        check_interval_seconds = %s,
+                        telegram_bot_token = %s,
+                        telegram_chat_id = %s,
+                        telegram_enabled = %s,
+                        notify_email = %s,
+                        email_enabled = %s,
+                        daily_report_time = %s,
+                        daily_report_enabled = %s
+                    WHERE id = 1
+                """, (
+                    data.get("target_centre", "Bulgaria Visa Application Center ,New Delhi"),
+                    data.get("target_category", "Long Stay D visa"),
+                    int(data.get("check_interval_seconds", 30)),
+                    data.get("telegram_bot_token", "").strip(),
+                    str(data.get("telegram_chat_id", "")).strip(),
+                    1 if str(data.get("telegram_enabled", "true")).lower() in ("true", "1") else 0,
+                    data.get("notify_email", "").strip(),
+                    1 if str(data.get("email_enabled", "true")).lower() in ("true", "1") else 0,
+                    data.get("daily_report_time", "22:00").strip(),
+                    1 if str(data.get("daily_report_enabled", "true")).lower() in ("true", "1") else 0
+                ))
         conn.close()
         return True, "Slot monitor settings updated successfully."
     except Exception as e:

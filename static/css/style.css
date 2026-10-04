@@ -695,8 +695,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: crosshair;
   overflow: hidden;
+  user-select: none;
+  outline: none;
 }
 
 .screen-viewport img {
@@ -706,7 +708,30 @@ body {
   display: block;
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: auto;
 }
+
+.click-ripple {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  margin-top: -12px;
+  border-radius: 50%;
+  background: rgba(249, 115, 22, 0.45);
+  border: 2px solid #f97316;
+  pointer-events: none;
+  transform: scale(0.2);
+  animation: rippleAnim 0.45s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+  z-index: 100;
+}
+@keyframes rippleAnim {
+  0% { transform: scale(0.2); opacity: 1; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
 
 .screen-overlay {
   position: absolute;
