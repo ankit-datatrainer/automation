@@ -10,8 +10,8 @@ A high-performance, 100% Python automation assistant with a modern real-time Web
 2. **Dismiss Overlays**: Automatically clears OneTrust cookie consent banners.
 3. **Click "Book now"**: Locates and clicks the primary *Book now* button.
 4. **Login**: Navigates to `https://visa.vfsglobal.com/ind/en/bgr/login` and enters your credentials:
-   - Email: `ankit.developer2004@gmail.com`
-   - Password: `@Nkit55555`
+   - Email: `oli930110@gmail.com`
+   - Password: `Milan@123`
 5. **Cloudflare & Sign In**: Interacts with Cloudflare Turnstile, awaits token verification, and clicks *Sign In*.
 6. **Gmail OTP Auto-Retrieval**: Securely connects to `imap.gmail.com:993` via IMAP, polls for the incoming verification code, extracts the 6-digit OTP, fills the input fields, and submits.
 7. **Dashboard & Start New Booking**: Detects arrival at `https://visa.vfsglobal.com/ind/en/bgr/dashboard` and clicks the orange *Start New Booking* button.
@@ -76,17 +76,15 @@ The Web Dashboard will be accessible on `http://YOUR_VPS_IP:5000`.
 ## 🔒 Configuration (`.env`)
 
 ```ini
-VFS_EMAIL=ankit.developer2004@gmail.com
-VFS_PASSWORD=@Nkit55555
-
-VFS_GMAIL_USER=ankit.developer2004@gmail.com
-VFS_GMAIL_APP_PASSWORD=dbfq cwtw nfwm ouuk
+VFS_EMAIL=oli930110@gmail.com
+VFS_PASSWORD=Milan@123
 
 TARGET_CITY=delhi
-VISA_CATEGORY=national_visa
+VISA_CATEGORY=Business
+VISA_SUB_CATEGORY=Business Visa
 PORTAL_URL=https://visa.vfsglobal.com/ind/en/bgr
 
-BROWSER_CHANNEL=chrome
+BROWSER_CHANNEL=brave
 HEADLESS=false
-DASHBOARD_PORT=5000
+DASHBOARD_PORT=4140
 ```
