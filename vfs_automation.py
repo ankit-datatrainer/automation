@@ -1202,16 +1202,53 @@ class VFSAutomation:
 
         return False
 
+    def _wait_for_vfs_security_countdown(self, timeout_sec: int = 35) -> bool:
+        """Wait for VFS 'Please wait X seconds before continuing' countdown overlay (Screenshot 2) to completely disappear."""
+        if not self.page:
+            return False
+
+        countdown_loc = self.page.locator(
+            'div:has-text("seconds before continuing"), '
+            '.cdk-overlay-pane:has-text("seconds before continuing"), '
+            '.cdk-overlay-pane:has-text("Please wait"), '
+            'div:has-text("Please wait")'
+        ).filter(has_text=re.compile(r"(seconds before continuing|Please wait \d+)", re.I)).first
+
+        try:
+            if countdown_loc.count() > 0 and countdown_loc.is_visible():
+                txt = ""
+                try:
+                    txt = countdown_loc.inner_text().strip().replace("\n", " ")
+                except Exception:
+                    pass
+                self.report("APPLICANT", f"⏳ VFS security countdown active ('{txt or 'Please wait...'}'). Waiting for countdown to finish...")
+                self.take_screenshot("15_security_countdown_active")
+
+                # Poll until hidden or countdown completes
+                start_w = time.time()
+                while time.time() - start_w < timeout_sec:
+                    if not countdown_loc.is_visible():
+                        break
+                    time.sleep(1.0)
+
+                self.page.wait_for_timeout(1000)
+                self.report("APPLICANT", "✓ Security countdown finished. Overlay cleared.")
+                return True
+        except Exception as e:
+            log.debug(f"Countdown wait exception: {e}")
+        return False
+
     def _fill_single_applicant_form(self, app_data: dict, app_idx: int = 1, total_apps: int = 1) -> bool:
         """Fill in form fields and save a single applicant."""
         self.report("APPLICANT", f"[{app_idx}/{total_apps}] Entering personal info for {app_data.get('first_name', '')} {app_data.get('last_name', '')}...")
 
-        # Wait for any loading spinner to hide
+        # Wait for any loading spinner or countdown to hide
         try:
             self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=15000)
         except Exception:
             pass
-        self.page.wait_for_timeout(1500)
+        self._wait_for_vfs_security_countdown(timeout_sec=35)
+        self.page.wait_for_timeout(1000)
 
         # Scroll to top to ensure all fields are in viewport
         try:
@@ -1278,9 +1315,9 @@ class VFSAutomation:
         set_val(ppn_loc, app_data["passport_number"])
 
         # 7. Passport Expiry Date (Angular Material Datepicker)
-        exp_date = str(app_data.get("passport_expiry") or getattr(self.cfg, "APPLICANT_PASSPORT_EXPIRY", "20/05/2031")).strip()
+        exp_date = str(app_data.get("passport_expiry") or getattr(self.cfg, "APPLICANT_PASSPORT_EXPIRY", "24/10/2028")).strip()
         if not exp_date or exp_date == "--":
-            exp_date = "20/05/2031"
+            exp_date = "24/10/2028"
         self.report("APPLICANT", f"[{app_idx}/{total_apps}] Entering Passport Expiry Date: {exp_date}")
 
         exp_candidates = [
@@ -1325,15 +1362,28 @@ class VFSAutomation:
                 log.debug(f"Passport expiry input note: {e}")
 
         # 8. Contact Number
-        self.report("APPLICANT", f"[{app_idx}/{total_apps}] Entering Contact Number: {app_data['phone']}")
+        phone_raw = str(app_data.get("phone", "")).strip()
+        phone_code = str(app_data.get("phone_code") or getattr(self.cfg, "APPLICANT_PHONE_CODE", "91")).strip().lstrip("+") or "91"
+        if phone_raw.startswith("+"):
+            phone_raw = phone_raw[1:].strip()
+        if len(phone_raw) > 10 and phone_raw.startswith("91"):
+            phone_code = "91"
+            phone_raw = phone_raw[2:].strip()
+        elif " " in phone_raw:
+            parts = phone_raw.split(None, 1)
+            if parts[0].isdigit() and len(parts[0]) <= 3:
+                phone_code = parts[0]
+                phone_raw = parts[1].strip()
+
+        self.report("APPLICANT", f"[{app_idx}/{total_apps}] Entering Contact Number: +{phone_code} {phone_raw}")
         contact_inputs = self.page.locator('//label[contains(translate(., "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "contact number")]/following::input[position() <= 2]').all()
         if len(contact_inputs) >= 2:
-            set_val(contact_inputs[0], "91")
-            set_val(contact_inputs[1], app_data["phone"])
+            set_val(contact_inputs[0], phone_code)
+            set_val(contact_inputs[1], phone_raw)
         elif len(contact_inputs) == 1:
-            set_val(contact_inputs[0], app_data["phone"])
+            set_val(contact_inputs[0], phone_raw)
         else:
-            set_val(self.page.locator('input[formcontrolname*="contact" i]').first, app_data["phone"])
+            set_val(self.page.locator('input[formcontrolname*="contact" i]').first, phone_raw)
 
         # 9. Email
         self.report("APPLICANT", f"[{app_idx}/{total_apps}] Entering Email: {app_data['email']}")
@@ -1349,13 +1399,7 @@ class VFSAutomation:
             bring_window_to_front_win32(self.page)
 
         # 10. Rate limit countdown check: Only wait if an actual VFS security countdown is displayed
-        warning_loc = self.page.locator('text="Please wait", text="wait 30 seconds", text="wait before"').first
-        if warning_loc.count() > 0 and warning_loc.is_visible():
-            self.report("APPLICANT", f"[{app_idx}/{total_apps}] VFS security countdown active. Waiting for timer...")
-            try:
-                warning_loc.wait_for(state="hidden", timeout=35000)
-            except Exception:
-                pass
+        self._wait_for_vfs_security_countdown(timeout_sec=35)
 
         # 11. Click Save button
         self.report("APPLICANT", f"[{app_idx}/{total_apps}] Submitting and saving applicant details...")
@@ -1370,10 +1414,23 @@ class VFSAutomation:
                 save_btn.click(timeout=4000)
             except Exception:
                 save_btn.click(force=True)
+
+        # In Screenshot 2, the security countdown overlay appears immediately upon clicking Save!
+        self.page.wait_for_timeout(600)
+        countdown_triggered = self._wait_for_vfs_security_countdown(timeout_sec=35)
+        if countdown_triggered:
+            # Re-check if save button is still visible and needs another click once overlay is gone
             try:
-                self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner').wait_for(state="hidden", timeout=5000)
+                if save_btn.count() > 0 and save_btn.is_visible():
+                    self.report("APPLICANT", "Re-clicking 'Save' after security countdown cleared...")
+                    save_btn.click(force=True)
             except Exception:
                 pass
+
+        try:
+            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner').wait_for(state="hidden", timeout=7000)
+        except Exception:
+            pass
 
         self.take_screenshot(f"16_applicant_{app_idx}_saved")
 
@@ -1448,6 +1505,13 @@ class VFSAutomation:
 
         # 13. All applicants entered! Check for Continue button to advance to Step 3
         self.report("APPLICANT", f"All {total_apps} applicant(s) saved! Advancing to Step 3 (Slot Booking)...")
+        # Ensure any remaining countdown or spinner is done
+        self._wait_for_vfs_security_countdown(timeout_sec=35)
+        try:
+            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=6000)
+        except Exception:
+            pass
+
         continue_btn = self.page.locator(
             'mat-card button.btn-brand-orange:has-text("Continue"), '
             '.actions button.btn-brand-orange:has-text("Continue"), '

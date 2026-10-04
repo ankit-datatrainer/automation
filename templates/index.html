@@ -530,18 +530,108 @@
           </div>
         </section>
 
-        <!-- Applicants Profile Card (Up to 5) -->
+        <!-- Applicants Profile & Direct Input Card (VFS Step 2 Details) -->
         <section class="card side-card" id="sidebarApplicantsCard">
           <div class="side-card-header">
             <div>
-              <h3 class="side-title">Applicants</h3>
+              <h3 class="side-title">Applicant Details</h3>
               <span class="applicant-count-badge" id="sidebarApplicantCount">1 of 5 Configured</span>
             </div>
-            <button class="btn-link-edit" onclick="openConfigModal('tab-applicant')">Manage (Up to 5)</button>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span id="sideAppSyncBadge" style="font-size:0.72rem; color:#10b981; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.25); border-radius:999px; padding:2px 8px; font-weight:700;">✓ Synced</span>
+              <button type="button" class="btn-link-edit" onclick="openConfigModal('tab-applicant')" title="Open detailed modal manager">Modal</button>
+            </div>
           </div>
-          <div id="sidebarApplicantsList" class="sidebar-applicants-container">
-            <!-- Dynamically populated with all applicants -->
+
+          <!-- Dynamic Applicant Selector Chips -->
+          <div class="applicant-selector-list" id="sidebarApplicantTabsList" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
+            <!-- Rendered dynamically: [1. Primary • VIKAS] ... -->
           </div>
+
+          <!-- Direct Step 2 Interactive Form -->
+          <div id="sidebarApplicantFormContainer" style="background:rgba(0,0,0,0.25); border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <strong id="sideActiveAppTitle" style="color:var(--brand-orange); font-size:0.85rem;">Applicant 1 (Primary)</strong>
+              <button type="button" class="btn-profile-act" id="btnSideRemoveApp" onclick="removeActiveApplicant()" style="display:none; padding:3px 8px; font-size:0.72rem; color:#ef4444; border-color:rgba(239,68,68,0.4);" title="Remove Applicant">
+                ✕ Remove
+              </button>
+            </div>
+
+            <!-- 1. First & Last Name -->
+            <div class="form-row" style="margin-bottom:8px;">
+              <div class="form-group col-6" style="margin-bottom:0;">
+                <label style="font-size:0.72rem; color:#94a3b8; font-weight:700;">First Name/Given Name*</label>
+                <input type="text" id="side_app_first_name" oninput="updateSidebarApplicantField('first_name', this.value)" placeholder="VIKAS" style="width:100%; background:#090e1a; border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:#fff; font-size:0.8rem; outline:none;" required>
+              </div>
+              <div class="form-group col-6" style="margin-bottom:0;">
+                <label style="font-size:0.72rem; color:#94a3b8; font-weight:700;">Last Name/Surname*</label>
+                <input type="text" id="side_app_last_name" oninput="updateSidebarApplicantField('last_name', this.value)" placeholder="KUMAR" style="width:100%; background:#090e1a; border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:#fff; font-size:0.8rem; outline:none;" required>
+              </div>
+            </div>
+
+            <!-- 2. Gender & Date of Birth -->
+            <div class="form-row" style="margin-bottom:8px;">
+              <div class="form-group col-6" style="margin-bottom:0;">
+                <label style="font-size:0.72rem; color:#94a3b8; font-weight:700;">Gender*</label>
+                <select id="side_app_gender" onchange="updateSidebarApplicantField('gender', this.value)" style="width:100%; background:#090e1a; border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:#fff; font-size:0.8rem; outline:none;">
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="form-group col-6" style="margin-bottom:0;">
+                <label style="font-size:0.72rem; color:#94a3b8; font-weight:700;">Date Of Birth (DD/MM/YYYY)*</label>
+                <input type="text" id="side_app_dob" oninput="updateSidebarApplicantField('dob', this.value)" placeholder="08/05/2000" style="width:100%; background:#090e1a; border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:#fff; font-size:0.8rem; outline:none;" required>
+              </div>
+            </div>
+
+            <!-- 3. Current Nationality & Passport Number -->
+            <div class="form-row" style="margin-bottom:8px;">
+              <div class="form-group col-6" style="margin-bottom:0;">
+                <label style="font-size:0.72rem; color:#94a3b8; font-weight:700;">Current Nationality*</label>
+                <input type="text" id="side_app_nationality" oninput="updateSidebarApplicantField('nationality', this.value)" placeholder="INDIA" value="INDIA" style="width:100%; background:#090e1a; border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:#fff; font-size:0.8rem; outline:none;" required>
+              </div>
+              <div class="form-group col-6" style="margin-bottom:0;">
+                <label style="font-size:0.72rem; color:#94a3b8; font-weight:700;">Passport Number*</label>
+                <input type="text" id="side_app_passport" oninput="updateSidebarApplicantField('passport_number', this.value)" placeholder="BB098076" style="width:100%; background:#090e1a; border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:#fff; font-size:0.8rem; outline:none;" required>
+              </div>
+            </div>
+
+            <!-- 4. Passport Expiry & Contact Number -->
+            <div class="form-row" style="margin-bottom:8px;">
+              <div class="form-group col-6" style="margin-bottom:0;">
+                <label style="font-size:0.72rem; color:#94a3b8; font-weight:700;">Passport Expiry Date*</label>
+                <input type="text" id="side_app_passport_expiry" oninput="updateSidebarApplicantField('passport_expiry', this.value)" placeholder="24/10/2028" style="width:100%; background:#090e1a; border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:#fff; font-size:0.8rem; outline:none;" required>
+              </div>
+              <div class="form-group col-6" style="margin-bottom:0;">
+                <label style="font-size:0.72rem; color:#94a3b8; font-weight:700;">Contact number*</label>
+                <div style="display:flex; gap:4px;">
+                  <input type="text" id="side_app_phone_code" oninput="updateSidebarApplicantField('phone_code', this.value)" placeholder="91" value="91" title="Country Code" style="width:38px; text-align:center; background:#090e1a; border:1px solid var(--border); border-radius:6px; padding:6px 2px; color:#fff; font-size:0.8rem; font-weight:700; outline:none;">
+                  <input type="text" id="side_app_phone" oninput="updateSidebarApplicantField('phone', this.value)" placeholder="7838349247" style="flex:1; min-width:0; background:#090e1a; border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:#fff; font-size:0.8rem; outline:none;" required>
+                </div>
+              </div>
+            </div>
+
+            <!-- 5. Email -->
+            <div class="form-group" style="margin-bottom:10px;">
+              <label style="font-size:0.72rem; color:#94a3b8; font-weight:700;">Email*</label>
+              <input type="email" id="side_app_email" oninput="updateSidebarApplicantField('email', this.value)" placeholder="ANKIT.DEVELOPER2004@GMAIL.COM" style="width:100%; background:#090e1a; border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:#fff; font-size:0.8rem; outline:none;" required>
+            </div>
+
+            <!-- Actions Bar inside Card -->
+            <div style="display:flex; gap:6px; align-items:center;">
+              <button type="button" class="btn-profile-act" onclick="saveSidebarApplicantDetails(true)" style="flex:1; padding:7px 10px; font-size:0.78rem; font-weight:700; background:rgba(249,115,22,0.2); border-color:var(--brand-orange); color:#fff; text-align:center;">
+                💾 Save Details
+              </button>
+              <button type="button" class="btn-profile-act" id="btnSideAddApp" onclick="addNewApplicant()" style="padding:7px 10px; font-size:0.78rem; text-align:center;" title="Add another applicant (up to 5)">
+                + Add (Max 5)
+              </button>
+            </div>
+            <span id="sideAppFeedback" style="font-size:0.72rem; color:#10b981; display:block; margin-top:6px;">✓ Auto-syncs to booking engine</span>
+          </div>
+
+          <!-- Secondary Compact List of Other Applicants if > 1 -->
+          <div id="sidebarApplicantsList" class="sidebar-applicants-container" style="display:none;"></div>
         </section>
 
         <!-- Credentials Card -->
@@ -661,11 +751,14 @@
             <div class="form-row">
               <div class="form-group col-6">
                 <label>Passport Expiry (DD/MM/YYYY)*</label>
-                <input type="text" id="cur_passport_expiry" placeholder="20/05/2031" oninput="updateActiveApplicantField('passport_expiry', this.value)" required>
+                <input type="text" id="cur_passport_expiry" placeholder="24/10/2028" oninput="updateActiveApplicantField('passport_expiry', this.value)" required>
               </div>
               <div class="form-group col-6">
-                <label>Contact Phone (10 digits)*</label>
-                <input type="text" id="cur_phone" placeholder="7838349247" oninput="updateActiveApplicantField('phone', this.value)" required>
+                <label>Contact Number*</label>
+                <div style="display:flex; gap:6px;">
+                  <input type="text" id="cur_phone_code" placeholder="91" value="91" style="width:48px; text-align:center; font-weight:700;" oninput="updateActiveApplicantField('phone_code', this.value)">
+                  <input type="text" id="cur_phone" placeholder="7838349247" style="flex:1;" oninput="updateActiveApplicantField('phone', this.value)" required>
+                </div>
               </div>
             </div>
 
@@ -992,6 +1085,7 @@
           modalSubCustom.style.display = "none";
         }
       }
+      updateHeroTargetApplicantSummary();
     }
 
     function handleSidebarCategoryChange(val) {
@@ -1117,15 +1211,16 @@
           }];
         } else {
           currentApplicants = [{
-            first_name: "Ankit",
-            last_name: "Sharma",
+            first_name: "VIKAS",
+            last_name: "KUMAR",
             gender: "Male",
-            dob: "15/06/1995",
-            nationality: "India",
-            passport_number: "Z1234567",
-            passport_expiry: "20/05/2031",
+            dob: "08/05/2000",
+            nationality: "INDIA",
+            passport_number: "BB098076",
+            passport_expiry: "24/10/2028",
+            phone_code: "91",
             phone: "7838349247",
-            email: "ankit.developer2004@gmail.com"
+            email: "ANKIT.DEVELOPER2004@GMAIL.COM"
           }];
         }
 
@@ -1153,25 +1248,27 @@
       }
     }
 
-    // Render Multi-Applicant UI components
+    // Render Multi-Applicant UI components across sidebar and modal
     function renderApplicantUI() {
       const tabsList = document.getElementById("applicantTabsList");
+      const sidebarTabsList = document.getElementById("sidebarApplicantTabsList");
       const modalCount = document.getElementById("modalApplicantCount");
       const sidebarCount = document.getElementById("sidebarApplicantCount");
-      const sidebarList = document.getElementById("sidebarApplicantsList");
       const btnAdd = document.getElementById("btnAddApplicant");
+      const btnSideAdd = document.getElementById("btnSideAddApp");
 
       if (!currentApplicants || currentApplicants.length === 0) {
         currentApplicants = [{
-          first_name: "Ankit",
-          last_name: "Sharma",
+          first_name: "VIKAS",
+          last_name: "KUMAR",
           gender: "Male",
-          dob: "15/06/1995",
-          nationality: "India",
-          passport_number: "Z1234567",
-          passport_expiry: "20/05/2031",
+          dob: "08/05/2000",
+          nationality: "INDIA",
+          passport_number: "BB098076",
+          passport_expiry: "24/10/2028",
+          phone_code: "91",
           phone: "7838349247",
-          email: "ankit.developer2004@gmail.com"
+          email: "ANKIT.DEVELOPER2004@GMAIL.COM"
         }];
       }
 
@@ -1183,16 +1280,16 @@
       if (modalCount) modalCount.innerText = `${total} / 5 Applicants`;
       if (sidebarCount) sidebarCount.innerText = `${total} of 5 Configured`;
 
+      const disableAdd = total >= 5;
       if (btnAdd) {
-        if (total >= 5) {
-          btnAdd.disabled = true;
-          btnAdd.style.opacity = "0.35";
-          btnAdd.title = "Maximum 5 applicants reached";
-        } else {
-          btnAdd.disabled = false;
-          btnAdd.style.opacity = "1";
-          btnAdd.title = "Add another applicant (up to 5)";
-        }
+        btnAdd.disabled = disableAdd;
+        btnAdd.style.opacity = disableAdd ? "0.35" : "1";
+        btnAdd.title = disableAdd ? "Maximum 5 applicants reached" : "Add another applicant (up to 5)";
+      }
+      if (btnSideAdd) {
+        btnSideAdd.disabled = disableAdd;
+        btnSideAdd.style.opacity = disableAdd ? "0.35" : "1";
+        btnSideAdd.title = disableAdd ? "Maximum 5 applicants reached" : "Add another applicant (up to 5)";
       }
 
       // Render Modal Tabs
@@ -1207,28 +1304,20 @@
         }).join("");
       }
 
-      populateActiveApplicantForm();
-
-      // Render Sidebar Cards
-      if (sidebarList) {
-        sidebarList.innerHTML = currentApplicants.map((app, idx) => {
-          const isPrimary = idx === 0 ? "primary" : "";
-          const badgeText = idx === 0 ? "Primary" : `App #${idx + 1}`;
-          return `
-            <div class="sidebar-applicant-item ${isPrimary}">
-              <div class="app-header">
-                <span class="app-name">${escapeHtml(app.first_name || 'Unnamed')} ${escapeHtml(app.last_name || '')}</span>
-                <span class="app-num">${badgeText}</span>
-              </div>
-              <div class="app-meta">
-                <span>${escapeHtml(app.gender || 'Male')} • ${escapeHtml(app.dob || '--')} • ${escapeHtml(app.nationality || 'India')}</span><br>
-                <span class="font-mono" style="color:var(--text-secondary); font-size:0.75rem;">Passport: ${escapeHtml(app.passport_number || '--')} (Exp: ${escapeHtml(app.passport_expiry || '--')})</span><br>
-                <span class="font-mono" style="color:var(--text-secondary); font-size:0.75rem;">📞 +91 ${escapeHtml(app.phone || '')} • ✉ ${escapeHtml(app.email || '')}</span>
-              </div>
-            </div>
-          `;
+      // Render Sidebar Chips for instant switching
+      if (sidebarTabsList) {
+        sidebarTabsList.innerHTML = currentApplicants.map((app, idx) => {
+          const isAct = idx === activeApplicantIdx ? "active" : "";
+          const label = idx === 0 ? "1. Primary" : `${idx + 1}. App`;
+          const namePart = app.first_name ? ` • ${escapeHtml(app.first_name)}` : "";
+          return `<button type="button" class="applicant-chip ${isAct}" onclick="switchApplicantTab(${idx})" style="padding:4px 8px; font-size:0.75rem;">
+            <span>${label}${namePart}</span>
+          </button>`;
         }).join("");
       }
+
+      populateActiveApplicantForm();
+      updateHeroTargetApplicantSummary();
     }
 
     function switchApplicantTab(idx) {
@@ -1242,38 +1331,185 @@
       if (hdr) {
         hdr.innerText = activeApplicantIdx === 0 ? "Applicant 1 (Primary Applicant)" : `Applicant ${activeApplicantIdx + 1}`;
       }
+      const sideHdr = document.getElementById("sideActiveAppTitle");
+      if (sideHdr) {
+        sideHdr.innerText = activeApplicantIdx === 0 ? "Applicant 1 (Primary)" : `Applicant ${activeApplicantIdx + 1}`;
+      }
 
       const btnRemove = document.getElementById("btnRemoveApplicant");
       if (btnRemove) {
         btnRemove.style.display = activeApplicantIdx > 0 ? "inline-flex" : "none";
       }
+      const btnSideRemove = document.getElementById("btnSideRemoveApp");
+      if (btnSideRemove) {
+        btnSideRemove.style.display = activeApplicantIdx > 0 ? "inline-block" : "none";
+      }
 
       const setFld = (id, val) => {
         const el = document.getElementById(id);
-        if (el) el.value = val || "";
+        if (el) el.value = val !== undefined && val !== null ? val : "";
       };
 
+      // Modal inputs
       setFld("cur_first_name", cur.first_name);
       setFld("cur_last_name", cur.last_name);
       setFld("cur_gender", cur.gender || "Male");
       setFld("cur_dob", cur.dob);
-      setFld("cur_nationality", cur.nationality || "India");
+      setFld("cur_nationality", cur.nationality || "INDIA");
       setFld("cur_passport", cur.passport_number);
       setFld("cur_passport_expiry", cur.passport_expiry);
+      setFld("cur_phone_code", cur.phone_code || "91");
       setFld("cur_phone", cur.phone);
       setFld("cur_applicant_email", cur.email);
+
+      // Sidebar inputs (Direct Step 2 user side inputs)
+      setFld("side_app_first_name", cur.first_name);
+      setFld("side_app_last_name", cur.last_name);
+      setFld("side_app_gender", cur.gender || "Male");
+      setFld("side_app_dob", cur.dob);
+      setFld("side_app_nationality", cur.nationality || "INDIA");
+      setFld("side_app_passport", cur.passport_number);
+      setFld("side_app_passport_expiry", cur.passport_expiry);
+      setFld("side_app_phone_code", cur.phone_code || "91");
+      setFld("side_app_phone", cur.phone);
+      setFld("side_app_email", cur.email);
     }
 
     function updateActiveApplicantField(field, val) {
       if (!currentApplicants[activeApplicantIdx]) return;
       currentApplicants[activeApplicantIdx][field] = val;
+      
+      // Sync sidebar field
+      const sideMap = {
+        first_name: "side_app_first_name",
+        last_name: "side_app_last_name",
+        gender: "side_app_gender",
+        dob: "side_app_dob",
+        nationality: "side_app_nationality",
+        passport_number: "side_app_passport",
+        passport_expiry: "side_app_passport_expiry",
+        phone_code: "side_app_phone_code",
+        phone: "side_app_phone",
+        email: "side_app_email",
+      };
+      if (sideMap[field]) {
+        const sideEl = document.getElementById(sideMap[field]);
+        if (sideEl && sideEl.value !== val) sideEl.value = val;
+      }
+      
+      onApplicantFieldChanged(field, val);
+    }
+
+    function updateSidebarApplicantField(field, val) {
+      if (!currentApplicants[activeApplicantIdx]) return;
+      currentApplicants[activeApplicantIdx][field] = val;
+
+      // Sync modal field
+      const modalMap = {
+        first_name: "cur_first_name",
+        last_name: "cur_last_name",
+        gender: "cur_gender",
+        dob: "cur_dob",
+        nationality: "cur_nationality",
+        passport_number: "cur_passport",
+        passport_expiry: "cur_passport_expiry",
+        phone_code: "cur_phone_code",
+        phone: "cur_phone",
+        email: "cur_applicant_email",
+      };
+      if (modalMap[field]) {
+        const modEl = document.getElementById(modalMap[field]);
+        if (modEl && modEl.value !== val) modEl.value = val;
+      }
+
+      onApplicantFieldChanged(field, val);
+    }
+
+    function onApplicantFieldChanged(field, val) {
+      const syncBadge = document.getElementById("sideAppSyncBadge");
+      if (syncBadge) {
+        syncBadge.innerText = "⚡ Ready";
+        syncBadge.style.color = "#f97316";
+        syncBadge.style.background = "rgba(249,115,22,0.15)";
+        syncBadge.style.borderColor = "rgba(249,115,22,0.35)";
+      }
+
       if (field === "first_name") {
-        const chips = document.querySelectorAll("#applicantTabsList .applicant-chip");
-        if (chips[activeApplicantIdx]) {
-          const label = activeApplicantIdx === 0 ? "1. Primary" : `${activeApplicantIdx + 1}. Applicant`;
-          chips[activeApplicantIdx].querySelector("span").innerText = `${label} • ${val}`;
+        const label = activeApplicantIdx === 0 ? "1. Primary" : `${activeApplicantIdx + 1}. App`;
+        const modalChips = document.querySelectorAll("#applicantTabsList .applicant-chip");
+        if (modalChips[activeApplicantIdx]) {
+          modalChips[activeApplicantIdx].querySelector("span").innerText = `${label} • ${val}`;
+        }
+        const sideChips = document.querySelectorAll("#sidebarApplicantTabsList .applicant-chip");
+        if (sideChips[activeApplicantIdx]) {
+          sideChips[activeApplicantIdx].querySelector("span").innerText = `${label} • ${val}`;
         }
       }
+      updateHeroTargetApplicantSummary();
+    }
+
+    async function saveSidebarApplicantDetails(showFeedback = true) {
+      if (!currentApplicants || !currentApplicants[activeApplicantIdx]) return;
+      
+      // Pull latest from DOM
+      const cur = currentApplicants[activeApplicantIdx];
+      const g = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ""; };
+      cur.first_name = g("side_app_first_name") || cur.first_name;
+      cur.last_name = g("side_app_last_name") || cur.last_name;
+      cur.gender = g("side_app_gender") || cur.gender || "Male";
+      cur.dob = g("side_app_dob") || cur.dob;
+      cur.nationality = g("side_app_nationality") || cur.nationality || "INDIA";
+      cur.passport_number = g("side_app_passport") || cur.passport_number;
+      cur.passport_expiry = g("side_app_passport_expiry") || cur.passport_expiry;
+      cur.phone_code = g("side_app_phone_code") || cur.phone_code || "91";
+      cur.phone = g("side_app_phone") || cur.phone;
+      cur.email = g("side_app_email") || cur.email;
+
+      const fb = document.getElementById("sideAppFeedback");
+      const syncBadge = document.getElementById("sideAppSyncBadge");
+      if (fb) fb.innerText = "Saving applicant details...";
+
+      try {
+        const res = await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ applicants: currentApplicants })
+        });
+        const d = await res.json();
+        if (d.success) {
+          if (syncBadge) {
+            syncBadge.innerText = "✓ Synced";
+            syncBadge.style.color = "#10b981";
+            syncBadge.style.background = "rgba(16,185,129,0.12)";
+            syncBadge.style.borderColor = "rgba(16,185,129,0.25)";
+          }
+          if (fb) fb.innerText = `✓ Saved details for ${cur.first_name || 'Applicant'}!`;
+          addLogLine(new Date().toLocaleTimeString(), "CONFIG", `Saved applicant: ${cur.first_name} ${cur.last_name} (${cur.passport_number})`);
+          renderApplicantUI();
+        } else {
+          if (fb) fb.innerText = "Error saving: " + d.message;
+        }
+      } catch (err) {
+        if (fb) fb.innerText = "Network error: " + err;
+      }
+    }
+
+    function updateHeroTargetApplicantSummary() {
+      const summaryEl = document.getElementById("heroTargetSummary");
+      if (!summaryEl) return;
+      const cityEl = document.getElementById("sideTargetCity");
+      const catEl = document.getElementById("sideVisaCategory");
+      const subEl = document.getElementById("sideVisaSubCategory");
+      
+      let cityName = cityEl && cityEl.options[cityEl.selectedIndex] ? cityEl.options[cityEl.selectedIndex].text.replace("Bulgaria Visa Application Center ,", "").trim() : "New Delhi";
+      let cat = catEl ? catEl.value : "Business";
+      let sub = subEl ? subEl.value : "Business Visa";
+
+      const cur = currentApplicants && currentApplicants[0] ? currentApplicants[0] : {};
+      const appName = cur.first_name ? `${cur.first_name} ${cur.last_name || ''}`.trim() : "VIKAS KUMAR";
+      const ppn = cur.passport_number ? ` (${cur.passport_number})` : "";
+
+      summaryEl.innerHTML = `Bulgaria VAC, ${escapeHtml(cityName)} • ${escapeHtml(cat)} (${escapeHtml(sub)}) <span style="color:#f97316; font-size:0.82rem; margin-left:6px; font-weight:600;">| Applicant: ${escapeHtml(appName)}${escapeHtml(ppn)}</span>`;
     }
 
     function addNewApplicant() {
@@ -1286,15 +1522,16 @@
         last_name: "",
         gender: "Male",
         dob: "",
-        nationality: "India",
+        nationality: "INDIA",
         passport_number: "",
         passport_expiry: "",
+        phone_code: "91",
         phone: (currentApplicants[0] && currentApplicants[0].phone) || "",
         email: (currentApplicants[0] && currentApplicants[0].email) || ""
       });
       activeApplicantIdx = currentApplicants.length - 1;
       renderApplicantUI();
-      const fn = document.getElementById("cur_first_name");
+      const fn = document.getElementById("side_app_first_name");
       if (fn) fn.focus();
     }
 
@@ -1310,7 +1547,7 @@
       }
     }
 
-    // Save Configuration
+    // Save Configuration Modal
     async function saveConfiguration(e) {
       e.preventDefault();
       const form = document.getElementById("configForm");
@@ -1362,7 +1599,25 @@
       const btnStop = document.getElementById("btnStop");
       btnStart.disabled = true;
       btnStop.disabled = false;
-      addLogLine(new Date().toLocaleTimeString(), "UI", `Starting session for ${currentApplicants.length} applicant(s)...`);
+
+      // 1. Flush any typed values from the sidebar applicant form into currentApplicants
+      if (currentApplicants && currentApplicants[activeApplicantIdx]) {
+        const cur = currentApplicants[activeApplicantIdx];
+        const g = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : null; };
+        if (g("side_app_first_name") !== null) cur.first_name = g("side_app_first_name");
+        if (g("side_app_last_name") !== null) cur.last_name = g("side_app_last_name");
+        if (g("side_app_gender") !== null) cur.gender = g("side_app_gender");
+        if (g("side_app_dob") !== null) cur.dob = g("side_app_dob");
+        if (g("side_app_nationality") !== null) cur.nationality = g("side_app_nationality");
+        if (g("side_app_passport") !== null) cur.passport_number = g("side_app_passport");
+        if (g("side_app_passport_expiry") !== null) cur.passport_expiry = g("side_app_passport_expiry");
+        if (g("side_app_phone_code") !== null) cur.phone_code = g("side_app_phone_code");
+        if (g("side_app_phone") !== null) cur.phone = g("side_app_phone");
+        if (g("side_app_email") !== null) cur.email = g("side_app_email");
+      }
+
+      const activeApplicant = (currentApplicants && currentApplicants[0]) ? currentApplicants[0] : {};
+      addLogLine(new Date().toLocaleTimeString(), "UI", `Targeting appointment for ${activeApplicant.first_name || 'VIKAS'} ${activeApplicant.last_name || 'KUMAR'} (Passport: ${activeApplicant.passport_number || 'BB098076'})...`);
 
       // Gather active route target from UI
       let activeCity = document.getElementById("sideTargetCity") ? document.getElementById("sideTargetCity").value : "";

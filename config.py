@@ -63,15 +63,16 @@ class Config:
     DB_ENABLED: bool = os.getenv("DB_ENABLED", "false").lower() in ("true", "1", "yes")
 
     # Applicant details (Primary)
-    APPLICANT_FIRST_NAME: str = os.getenv("APPLICANT_FIRST_NAME", "Ankit")
-    APPLICANT_LAST_NAME: str = os.getenv("APPLICANT_LAST_NAME", "Sharma")
+    APPLICANT_FIRST_NAME: str = os.getenv("APPLICANT_FIRST_NAME", "VIKAS")
+    APPLICANT_LAST_NAME: str = os.getenv("APPLICANT_LAST_NAME", "KUMAR")
     APPLICANT_GENDER: str = os.getenv("APPLICANT_GENDER", "Male")
-    APPLICANT_DOB: str = os.getenv("APPLICANT_DOB", "15/06/1995")
-    APPLICANT_NATIONALITY: str = os.getenv("APPLICANT_NATIONALITY", "India")
-    APPLICANT_PASSPORT_NUMBER: str = os.getenv("APPLICANT_PASSPORT_NUMBER", "Z1234567")
-    APPLICANT_PASSPORT_EXPIRY: str = os.getenv("APPLICANT_PASSPORT_EXPIRY", "20/05/2031")
+    APPLICANT_DOB: str = os.getenv("APPLICANT_DOB", "08/05/2000")
+    APPLICANT_NATIONALITY: str = os.getenv("APPLICANT_NATIONALITY", "INDIA")
+    APPLICANT_PASSPORT_NUMBER: str = os.getenv("APPLICANT_PASSPORT_NUMBER", "BB098076")
+    APPLICANT_PASSPORT_EXPIRY: str = os.getenv("APPLICANT_PASSPORT_EXPIRY", "24/10/2028")
+    APPLICANT_PHONE_CODE: str = os.getenv("APPLICANT_PHONE_CODE", "91")
     APPLICANT_PHONE: str = os.getenv("APPLICANT_PHONE", "7838349247")
-    APPLICANT_EMAIL: str = os.getenv("APPLICANT_EMAIL", "ankit.developer2004@gmail.com")
+    APPLICANT_EMAIL: str = os.getenv("APPLICANT_EMAIL", "ANKIT.DEVELOPER2004@GMAIL.COM")
 
     @property
     def APPLICANT_DATA(self) -> dict:
@@ -83,6 +84,7 @@ class Config:
             "nationality": self.APPLICANT_NATIONALITY,
             "passport_number": self.APPLICANT_PASSPORT_NUMBER,
             "passport_expiry": self.APPLICANT_PASSPORT_EXPIRY,
+            "phone_code": self.APPLICANT_PHONE_CODE,
             "phone": self.APPLICANT_PHONE,
             "email": self.APPLICANT_EMAIL,
         }
@@ -110,9 +112,10 @@ class Config:
                 "last_name": str(a.get("last_name", "")).strip(),
                 "gender": str(a.get("gender", "Male")).strip(),
                 "dob": str(a.get("dob", "")).strip(),
-                "nationality": str(a.get("nationality", "India")).strip(),
+                "nationality": str(a.get("nationality", "INDIA")).strip(),
                 "passport_number": str(a.get("passport_number", "")).strip(),
                 "passport_expiry": str(a.get("passport_expiry", "")).strip(),
+                "phone_code": str(a.get("phone_code", "91")).strip() or "91",
                 "phone": str(a.get("phone", "")).strip(),
                 "email": str(a.get("email", "")).strip(),
             })
@@ -131,6 +134,7 @@ class Config:
                 "APPLICANT_NATIONALITY": first.get("nationality") or self.APPLICANT_NATIONALITY,
                 "APPLICANT_PASSPORT_NUMBER": first.get("passport_number") or self.APPLICANT_PASSPORT_NUMBER,
                 "APPLICANT_PASSPORT_EXPIRY": first.get("passport_expiry") or self.APPLICANT_PASSPORT_EXPIRY,
+                "APPLICANT_PHONE_CODE": first.get("phone_code") or self.APPLICANT_PHONE_CODE,
                 "APPLICANT_PHONE": first.get("phone") or self.APPLICANT_PHONE,
                 "APPLICANT_EMAIL": first.get("email") or self.APPLICANT_EMAIL,
             })

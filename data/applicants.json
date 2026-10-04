@@ -1,57 +1,14 @@
 [
   {
-    "first_name": "Applicant1",
-    "last_name": "Test1",
-    "gender": "Female",
-    "dob": "10/10/1990",
-    "nationality": "India",
-    "passport_number": "P1234561",
-    "passport_expiry": "10/10/2030",
-    "phone": "9876543210",
-    "email": "applicant1@example.com"
-  },
-  {
-    "first_name": "Applicant2",
-    "last_name": "Test2",
+    "first_name": "VIKAS",
+    "last_name": "KUMAR",
     "gender": "Male",
-    "dob": "10/10/1990",
-    "nationality": "India",
-    "passport_number": "P1234562",
-    "passport_expiry": "10/10/2030",
-    "phone": "9876543210",
-    "email": "applicant2@example.com"
-  },
-  {
-    "first_name": "Applicant3",
-    "last_name": "Test3",
-    "gender": "Female",
-    "dob": "10/10/1990",
-    "nationality": "India",
-    "passport_number": "P1234563",
-    "passport_expiry": "10/10/2030",
-    "phone": "9876543210",
-    "email": "applicant3@example.com"
-  },
-  {
-    "first_name": "Applicant4",
-    "last_name": "Test4",
-    "gender": "Male",
-    "dob": "10/10/1990",
-    "nationality": "India",
-    "passport_number": "P1234564",
-    "passport_expiry": "10/10/2030",
-    "phone": "9876543210",
-    "email": "applicant4@example.com"
-  },
-  {
-    "first_name": "Applicant5",
-    "last_name": "Test5",
-    "gender": "Female",
-    "dob": "10/10/1990",
-    "nationality": "India",
-    "passport_number": "P1234565",
-    "passport_expiry": "10/10/2030",
-    "phone": "9876543210",
-    "email": "applicant5@example.com"
+    "dob": "08/05/2000",
+    "nationality": "INDIA",
+    "passport_number": "BB098076",
+    "passport_expiry": "24/10/2028",
+    "phone_code": "91",
+    "phone": "7838349247",
+    "email": "ANKIT.DEVELOPER2004@GMAIL.COM"
   }
 ]
