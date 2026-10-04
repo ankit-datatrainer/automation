@@ -56,9 +56,25 @@ def find_browser_executable(preferred: str = "brave") -> Path:
                     return p
     else:
         # Linux VPS standard paths
-        for binary in ["/usr/bin/brave-browser", "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"]:
+        candidates = []
+        if preferred == "brave":
+            candidates.extend(["/usr/bin/brave-browser", "/usr/bin/brave", "/snap/bin/brave"])
+        elif preferred in ("chrome", "google-chrome"):
+            candidates.extend(["/usr/bin/google-chrome", "/usr/bin/google-chrome-stable"])
+
+        candidates.extend([
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+            "/snap/bin/chromium",
+            "/usr/bin/brave-browser",
+            "/usr/bin/brave",
+        ])
+        for binary in candidates:
             p = Path(binary)
             if p.exists():
+                log.info(f"Found Linux browser binary: {p}")
                 return p
 
     return None
@@ -268,6 +284,9 @@ def launch_stealth_browser(
         "--start-maximized",
         "--no-default-browser-check",
         "--no-first-run",
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
         "--remote-debugging-port=9222",
         "--disable-blink-features=AutomationControlled",
         "--disable-infobars",
@@ -285,13 +304,61 @@ def launch_stealth_browser(
         "ignore_default_args": ["--enable-automation"],
     }
 
+    # Playwright natively supports these channel names only
+    VALID_PLAYWRIGHT_CHANNELS = {
+        "chrome", "chrome-beta", "chrome-dev", "chrome-canary",
+        "msedge", "msedge-beta", "msedge-dev", "msedge-canary"
+    }
+
+    req_channel = (channel or "").strip().lower()
     if exe and exe.exists():
         launch_kwargs["executable_path"] = str(exe)
-    elif channel and channel != "chromium":
-        launch_kwargs["channel"] = channel
+    elif req_channel in VALID_PLAYWRIGHT_CHANNELS:
+        launch_kwargs["channel"] = req_channel
+    else:
+        # If brave, chromium, or any unsupported channel where no executable was found,
+        # do NOT pass invalid channel name like 'brave' to Playwright.
+        # Playwright will automatically launch its bundled Chromium cleanly!
+        log.info(f"Launching with bundled Playwright Chromium (channel '{channel}' has no binary path)")
 
-    log.info(f"Launching persistent browser context (exe={exe}, profile={profile_dir})...")
-    context = playwright.chromium.launch_persistent_context(**launch_kwargs)
+    context = None
+    last_err = None
+
+    # Step 1: Attempt launch with preferred parameters
+    try:
+        log.info(f"Launching persistent browser context (exe={launch_kwargs.get('executable_path')}, channel={launch_kwargs.get('channel')}, profile={profile_dir})...")
+        context = playwright.chromium.launch_persistent_context(**launch_kwargs)
+    except Exception as e1:
+        last_err = e1
+        log.warning(f"Preferred browser launch failed: {e1}. Falling back to standard bundled Playwright Chromium...")
+
+    # Step 2: Fallback to standard bundled Chromium without custom channel/executable
+    if not context:
+        fallback_kwargs = dict(launch_kwargs)
+        fallback_kwargs.pop("channel", None)
+        fallback_kwargs.pop("executable_path", None)
+        try:
+            log.info("Attempting launch with standard bundled Playwright Chromium...")
+            context = playwright.chromium.launch_persistent_context(**fallback_kwargs)
+        except Exception as e2:
+            last_err = e2
+            log.warning(f"Bundled Chromium launch failed: {e2}. Retrying with fresh clean fallback profile...")
+
+    # Step 3: Fallback with clean profile directory if profile locked or corrupt
+    if not context:
+        clean_profile = profile_dir.parent / f"{profile_dir.name}-fallback"
+        clean_profile.mkdir(parents=True, exist_ok=True)
+        fallback_kwargs = dict(launch_kwargs)
+        fallback_kwargs.pop("channel", None)
+        fallback_kwargs.pop("executable_path", None)
+        fallback_kwargs["user_data_dir"] = str(clean_profile)
+        try:
+            context = playwright.chromium.launch_persistent_context(**fallback_kwargs)
+        except Exception as e3:
+            last_err = e3
+
+    if not context:
+        raise RuntimeError(f"Could not launch browser context after all fallbacks: {last_err}")
 
     # Single active tab focused directly on VFS portal
     if context.pages:
