@@ -159,14 +159,14 @@ def test_multi_applicants_config(auth_client):
 
     # Restore default primary applicant
     auth_client.post("/api/config", json={"applicants": [{
-        "first_name": "VIKAS",
-        "last_name": "KUMAR",
+        "first_name": "MILAN",
+        "last_name": "RINJALI MAGAR",
         "gender": "Male",
-        "dob": "08/05/2000",
-        "nationality": "INDIA",
-        "passport_number": "BB098076",
-        "passport_expiry": "24/10/2028",
-        "phone_code": "91",
+        "dob": "30/04/2003",
+        "nationality": "NEPAL",
+        "passport_number": "PA0273677",
+        "passport_expiry": "12/04/2032",
+        "phone_code": "977",
         "phone": "7838349247",
-        "email": "ANKIT.DEVELOPER2004@GMAIL.COM"
+        "email": "oli930110@gmail.com"
     }]})

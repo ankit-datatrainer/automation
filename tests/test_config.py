@@ -1,8 +1,8 @@
 from config import cfg
 
 def test_config_loaded():
-    assert cfg.VFS_EMAIL == "ankit.developer2004@gmail.com"
-    assert cfg.VFS_PASSWORD == "@Nkit55555"
+    assert cfg.VFS_EMAIL == "oli930110@gmail.com"
+    assert cfg.VFS_PASSWORD == "Milan@123"
     assert cfg.VFS_GMAIL_USER == "ankit.developer2004@gmail.com"
     assert cfg.VFS_GMAIL_APP_PASSWORD == "dbfq cwtw nfwm ouuk"
     assert cfg.BOOK_APPOINTMENT_URL == "https://visa.vfsglobal.com/ind/en/bgr/book-an-appointment"

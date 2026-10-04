@@ -11,16 +11,16 @@ def test_applicant_default_details():
     applicants = cfg.load_applicants()
     assert len(applicants) >= 1
     primary = applicants[0]
-    assert primary["first_name"] == "VIKAS"
-    assert primary["last_name"] == "KUMAR"
+    assert primary["first_name"] == "MILAN"
+    assert primary["last_name"] == "RINJALI MAGAR"
     assert primary["gender"] == "Male"
-    assert primary["dob"] == "08/05/2000"
-    assert primary["nationality"] == "INDIA"
-    assert primary["passport_number"] == "BB098076"
-    assert primary["passport_expiry"] == "24/10/2028"
-    assert primary["phone_code"] == "91"
+    assert primary["dob"] == "30/04/2003"
+    assert primary["nationality"] == "NEPAL"
+    assert primary["passport_number"] == "PA0273677"
+    assert primary["passport_expiry"] == "12/04/2032"
+    assert primary["phone_code"] == "977"
     assert primary["phone"] == "7838349247"
-    assert primary["email"] == "ANKIT.DEVELOPER2004@GMAIL.COM"
+    assert primary["email"] == "oli930110@gmail.com"
 
 
 def test_applicant_config_api_flow():
@@ -37,26 +37,26 @@ def test_applicant_config_api_flow():
     data = res.get_json()
     assert "applicants" in data
     assert len(data["applicants"]) >= 1
-    assert data["applicants"][0]["first_name"] == "VIKAS"
+    assert data["applicants"][0]["first_name"] == "MILAN"
 
     # POST update
     new_apps = [{
-        "first_name": "VIKAS",
-        "last_name": "KUMAR",
+        "first_name": "MILAN",
+        "last_name": "RINJALI MAGAR",
         "gender": "Male",
-        "dob": "08/05/2000",
-        "nationality": "INDIA",
-        "passport_number": "BB098076",
-        "passport_expiry": "24/10/2028",
-        "phone_code": "91",
+        "dob": "30/04/2003",
+        "nationality": "NEPAL",
+        "passport_number": "PA0273677",
+        "passport_expiry": "12/04/2032",
+        "phone_code": "977",
         "phone": "7838349247",
-        "email": "ANKIT.DEVELOPER2004@GMAIL.COM"
+        "email": "oli930110@gmail.com"
     }]
     post_res = client.post("/api/config", json={"applicants": new_apps})
     assert post_res.status_code == 200
     pdata = post_res.get_json()
     assert pdata["success"] is True
-    assert pdata["applicants"][0]["first_name"] == "VIKAS"
+    assert pdata["applicants"][0]["first_name"] == "MILAN"
 
 
 def test_security_countdown_regex():

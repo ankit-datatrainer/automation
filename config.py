@@ -13,8 +13,8 @@ load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 class Config:
     # VFS Account
-    VFS_EMAIL: str = os.getenv("VFS_EMAIL", "ankit.developer2004@gmail.com")
-    VFS_PASSWORD: str = os.getenv("VFS_PASSWORD", "@Nkit55555")
+    VFS_EMAIL: str = os.getenv("VFS_EMAIL", "oli930110@gmail.com")
+    VFS_PASSWORD: str = os.getenv("VFS_PASSWORD", "Milan@123")
 
     # Gmail OTP Retrieval
     VFS_GMAIL_USER: str = os.getenv("VFS_GMAIL_USER", "ankit.developer2004@gmail.com")
@@ -63,16 +63,16 @@ class Config:
     DB_ENABLED: bool = os.getenv("DB_ENABLED", "false").lower() in ("true", "1", "yes")
 
     # Applicant details (Primary)
-    APPLICANT_FIRST_NAME: str = os.getenv("APPLICANT_FIRST_NAME", "VIKAS")
-    APPLICANT_LAST_NAME: str = os.getenv("APPLICANT_LAST_NAME", "KUMAR")
+    APPLICANT_FIRST_NAME: str = os.getenv("APPLICANT_FIRST_NAME", "MILAN")
+    APPLICANT_LAST_NAME: str = os.getenv("APPLICANT_LAST_NAME", "RINJALI MAGAR")
     APPLICANT_GENDER: str = os.getenv("APPLICANT_GENDER", "Male")
-    APPLICANT_DOB: str = os.getenv("APPLICANT_DOB", "08/05/2000")
-    APPLICANT_NATIONALITY: str = os.getenv("APPLICANT_NATIONALITY", "INDIA")
-    APPLICANT_PASSPORT_NUMBER: str = os.getenv("APPLICANT_PASSPORT_NUMBER", "BB098076")
-    APPLICANT_PASSPORT_EXPIRY: str = os.getenv("APPLICANT_PASSPORT_EXPIRY", "24/10/2028")
-    APPLICANT_PHONE_CODE: str = os.getenv("APPLICANT_PHONE_CODE", "91")
+    APPLICANT_DOB: str = os.getenv("APPLICANT_DOB", "30/04/2003")
+    APPLICANT_NATIONALITY: str = os.getenv("APPLICANT_NATIONALITY", "NEPAL")
+    APPLICANT_PASSPORT_NUMBER: str = os.getenv("APPLICANT_PASSPORT_NUMBER", "PA0273677")
+    APPLICANT_PASSPORT_EXPIRY: str = os.getenv("APPLICANT_PASSPORT_EXPIRY", "12/04/2032")
+    APPLICANT_PHONE_CODE: str = os.getenv("APPLICANT_PHONE_CODE", "977")
     APPLICANT_PHONE: str = os.getenv("APPLICANT_PHONE", "7838349247")
-    APPLICANT_EMAIL: str = os.getenv("APPLICANT_EMAIL", "ANKIT.DEVELOPER2004@GMAIL.COM")
+    APPLICANT_EMAIL: str = os.getenv("APPLICANT_EMAIL", "oli930110@gmail.com")
 
     @property
     def APPLICANT_DATA(self) -> dict:
@@ -115,7 +115,7 @@ class Config:
                 "nationality": str(a.get("nationality", "INDIA")).strip(),
                 "passport_number": str(a.get("passport_number", "")).strip(),
                 "passport_expiry": str(a.get("passport_expiry", "")).strip(),
-                "phone_code": str(a.get("phone_code", "91")).strip() or "91",
+                "phone_code": str(a.get("phone_code") or getattr(self, "APPLICANT_PHONE_CODE", "977")).strip() or "977",
                 "phone": str(a.get("phone", "")).strip(),
                 "email": str(a.get("email", "")).strip(),
             })
