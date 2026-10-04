@@ -258,6 +258,28 @@
             </div>
           </div>
 
+          <!-- Active Target Route Quick Bar -->
+          <div class="hero-target-bar" id="heroTargetBar" style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(249, 115, 22, 0.35); border-radius: 12px; padding: 10px 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 1.3rem;">🎯</span>
+              <div>
+                <span style="font-size: 0.72rem; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.04em; display: block;">Active Target Route</span>
+                <strong id="heroTargetSummary" style="color: #ffffff; font-size: 0.92rem;">Bulgaria VAC, New Delhi • Business (Business Visa)</strong>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn-preset-pill active" id="heroPresetBusiness" onclick="applyTargetPreset('Business', 'Business Visa')" style="background: rgba(249, 115, 22, 0.2); border: 1px solid var(--brand-orange); color: #fff; padding: 5px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" title="Switch target to Business Visa (Slot Available)">
+                💼 Business
+              </button>
+              <button type="button" class="btn-preset-pill" id="heroPresetDVisa" onclick="applyTargetPreset('D visa', 'Long Stay D visa')" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); color: #94a3b8; padding: 5px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" title="Switch target to Long Stay D visa">
+                ⭐ D visa
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="openConfigModal('tab-route')" style="padding: 4px 10px; font-size: 0.78rem;" title="Edit Full Target Route">
+                ⚙️ Route
+              </button>
+            </div>
+          </div>
+
           <!-- Action Buttons -->
           <div class="hero-actions">
             <button class="btn btn-primary" id="btnStart" onclick="startAutomation()">
@@ -411,27 +433,76 @@
 
       <!-- Right Column: Configurations & State Snapshots -->
       <div class="col-side">
-        <!-- Route Profile -->
-        <section class="card side-card">
+        <!-- Route Profile / Interactive Target Selector -->
+        <section class="card side-card" id="sideTargetCard">
           <div class="side-card-header">
-            <h3 class="side-title">Appointment Target</h3>
-            <button class="btn-link-edit" onclick="openConfigModal('tab-route')">Edit</button>
+            <div>
+              <h3 class="side-title">Appointment Target</h3>
+              <span class="applicant-count-badge" id="sideTargetSyncBadge" style="font-size:0.72rem; color:#10b981; background:rgba(16,185,129,0.12); border-color:rgba(16,185,129,0.25);">✓ Synced</span>
+            </div>
+            <button class="btn-link-edit" onclick="openConfigModal('tab-route')">Settings</button>
           </div>
-          <div class="detail-row">
-            <span class="detail-label">Application Centre</span>
-            <span class="detail-val" id="dispCentre">Bulgaria VAC, {{ cfg.TARGET_CITY | capitalize }}</span>
+
+          <!-- Quick Presets Row -->
+          <div style="display:flex; gap:6px; margin-bottom:12px;">
+            <button type="button" class="btn-profile-act" id="sidePresetBusiness" onclick="applyTargetPreset('Business', 'Business Visa')" style="flex:1; padding:6px 8px; font-size:0.76rem; text-align:center; font-weight:700;">
+              💼 Business
+            </button>
+            <button type="button" class="btn-profile-act" id="sidePresetDVisa" onclick="applyTargetPreset('D visa', 'Long Stay D visa')" style="flex:1; padding:6px 8px; font-size:0.76rem; text-align:center; font-weight:700;">
+              ⭐ D visa
+            </button>
           </div>
-          <div class="detail-row">
-            <span class="detail-label">Appointment Category</span>
-            <span class="detail-val badge-category" id="dispCategory">{{ cfg.VISA_CATEGORY }}</span>
+
+          <!-- 1. Application Centre Dropdown (15 Official Centres) -->
+          <div class="form-group" style="margin-bottom:10px;">
+            <label style="font-size:0.75rem; color:#94a3b8; font-weight:700;">Application Centre (15 Centres)*</label>
+            <select id="sideTargetCity" onchange="handleSidebarTargetChange()" style="width:100%; background:#090e1a; border:1px solid var(--border); border-radius:8px; padding:7px 10px; color:#fff; font-size:0.8rem; outline:none;">
+              <option value="delhi">Bulgaria Visa Application Center ,New Delhi</option>
+              <option value="mumbai">Bulgaria Visa Application Center ,Mumbai</option>
+              <option value="bengaluru">Bulgaria Visa Application Center ,Bengaluru</option>
+              <option value="chennai">Bulgaria Visa Application Center ,Chennai</option>
+              <option value="kolkata">Bulgaria Visa Application Center ,Kolkata</option>
+              <option value="ahmedabad">Bulgaria Visa Application Center ,Ahmedabad</option>
+              <option value="chandigarh">Bulgaria Visa Application Center ,Chandigarh</option>
+              <option value="cochin">Bulgaria Visa Application Center ,Cochin</option>
+              <option value="goa">Bulgaria Visa Application Center ,Goa</option>
+              <option value="hyderabad">Bulgaria Visa Application Center ,Hyderabad</option>
+              <option value="jaipur">Bulgaria Visa Application Center ,Jaipur</option>
+              <option value="jalandhar">Bulgaria Visa Application Center ,Jalandhar</option>
+              <option value="pondicherry">Bulgaria Visa Application Center ,Pondicherry</option>
+              <option value="pune">Bulgaria Visa Application Center ,Pune</option>
+              <option value="trivandrum">Bulgaria Visa Application Center ,Trivandrum</option>
+            </select>
           </div>
-          <div class="detail-row">
-            <span class="detail-label">Sub-Category</span>
-            <span class="detail-val" id="dispSubCategory">{{ cfg.VISA_SUB_CATEGORY }}</span>
+
+          <!-- 2. Appointment Category Dropdown -->
+          <div class="form-group" style="margin-bottom:10px;">
+            <label style="font-size:0.75rem; color:#94a3b8; font-weight:700;">Appointment Category*</label>
+            <select id="sideVisaCategory" onchange="handleSidebarCategoryChange(this.value)" style="width:100%; background:#090e1a; border:1px solid var(--border); border-radius:8px; padding:7px 10px; color:#fff; font-size:0.8rem; outline:none;">
+              <option value="Business">Business</option>
+              <option value="D visa">D visa</option>
+              <option value="Short Stay">Short Stay</option>
+              <option value="Seasonal worker">Seasonal worker</option>
+              <option value="Embassy approved interview">Embassy approved interview</option>
+              <option value="__custom__">Other / Custom...</option>
+            </select>
+            <input type="text" id="sideVisaCategoryCustom" placeholder="Enter custom category" style="display:none; margin-top:6px; background:#090e1a; border:1px solid var(--border); border-radius:8px; padding:6px 10px; color:#fff; font-size:0.8rem;" oninput="handleSidebarCustomInput()">
           </div>
-          <div class="detail-row">
-            <span class="detail-label">Portal Endpoint</span>
-            <span class="detail-val font-mono" id="dispPortal">{{ cfg.PORTAL_URL }}</span>
+
+          <!-- 3. Sub-Category Dropdown -->
+          <div class="form-group" style="margin-bottom:12px;">
+            <label style="font-size:0.75rem; color:#94a3b8; font-weight:700;">Sub-Category*</label>
+            <select id="sideVisaSubCategory" onchange="handleSidebarTargetChange()" style="width:100%; background:#090e1a; border:1px solid var(--border); border-radius:8px; padding:7px 10px; color:#fff; font-size:0.8rem; outline:none;">
+              <!-- Dynamically populated from VFS_CATEGORY_MAP -->
+            </select>
+            <input type="text" id="sideVisaSubCategoryCustom" placeholder="Enter custom sub-category" style="display:none; margin-top:6px; background:#090e1a; border:1px solid var(--border); border-radius:8px; padding:6px 10px; color:#fff; font-size:0.8rem;" oninput="handleSidebarCustomInput()">
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border); padding-top:10px;">
+            <span id="sideTargetFeedback" style="font-size:0.74rem; color:#10b981;">✓ Active Target Saved</span>
+            <button type="button" class="btn-profile-act" onclick="applySidebarTargetChanges(true)" style="padding:5px 12px; font-size:0.78rem;">
+              💾 Save Route
+            </button>
           </div>
         </section>
 
@@ -608,25 +679,45 @@
         <!-- Tab 2: Route & Centre -->
         <div class="tab-pane" id="tab-route">
           <div class="form-group">
-            <label>Application Centre (City)*</label>
-            <select name="TARGET_CITY" id="cfg_target_city">
+            <label>Application Centre (15 Official VFS Centres)*</label>
+            <select name="TARGET_CITY" id="cfg_target_city" onchange="onModalTargetCityChange(this.value)">
               <option value="delhi">Bulgaria Visa Application Center ,New Delhi</option>
               <option value="mumbai">Bulgaria Visa Application Center ,Mumbai</option>
               <option value="bengaluru">Bulgaria Visa Application Center ,Bengaluru</option>
               <option value="chennai">Bulgaria Visa Application Center ,Chennai</option>
               <option value="kolkata">Bulgaria Visa Application Center ,Kolkata</option>
               <option value="ahmedabad">Bulgaria Visa Application Center ,Ahmedabad</option>
+              <option value="chandigarh">Bulgaria Visa Application Center ,Chandigarh</option>
+              <option value="cochin">Bulgaria Visa Application Center ,Cochin</option>
+              <option value="goa">Bulgaria Visa Application Center ,Goa</option>
+              <option value="hyderabad">Bulgaria Visa Application Center ,Hyderabad</option>
+              <option value="jaipur">Bulgaria Visa Application Center ,Jaipur</option>
+              <option value="jalandhar">Bulgaria Visa Application Center ,Jalandhar</option>
+              <option value="pondicherry">Bulgaria Visa Application Center ,Pondicherry</option>
+              <option value="pune">Bulgaria Visa Application Center ,Pune</option>
+              <option value="trivandrum">Bulgaria Visa Application Center ,Trivandrum</option>
             </select>
           </div>
 
           <div class="form-row">
             <div class="form-group col-6">
               <label>Appointment Category*</label>
-              <input type="text" name="VISA_CATEGORY" id="cfg_category" value="Long Stay D visa" required>
+              <select name="VISA_CATEGORY" id="cfg_category" onchange="onModalCategoryChange(this.value)" required>
+                <option value="Business">Business</option>
+                <option value="D visa">D visa</option>
+                <option value="Short Stay">Short Stay</option>
+                <option value="Seasonal worker">Seasonal worker</option>
+                <option value="Embassy approved interview">Embassy approved interview</option>
+                <option value="__custom__">Other / Custom...</option>
+              </select>
+              <input type="text" id="cfg_category_custom" placeholder="Enter custom category" style="display:none; margin-top:6px;" oninput="onModalCustomInput()">
             </div>
             <div class="form-group col-6">
               <label>Sub-Category*</label>
-              <input type="text" name="VISA_SUB_CATEGORY" id="cfg_sub_category" value="Long Stay D visa" required>
+              <select name="VISA_SUB_CATEGORY" id="cfg_sub_category" onchange="onModalSubCategoryChange(this.value)" required>
+                <!-- Populated dynamically based on category -->
+              </select>
+              <input type="text" id="cfg_sub_category_custom" placeholder="Enter custom sub-category" style="display:none; margin-top:6px;" oninput="onModalCustomInput()">
             </div>
           </div>
 
@@ -712,6 +803,298 @@
     let currentApplicants = [];
     let activeApplicantIdx = 0;
 
+    // Official VFS Bulgarian Embassy category and sub-category mapping
+    const VFS_CATEGORY_MAP = {
+      "Business": ["Business Visa"],
+      "D visa": ["Long Stay D visa"],
+      "Short Stay": ["Tourist Visa", "Business Visa", "Visiting Family/Friends", "Cultural/Sports/Study"],
+      "Seasonal worker": ["Seasonal worker"],
+      "Embassy approved interview": ["Embassy approved interview"]
+    };
+
+    const VFS_CENTRES = [
+      { code: "delhi", name: "Bulgaria Visa Application Center ,New Delhi" },
+      { code: "mumbai", name: "Bulgaria Visa Application Center ,Mumbai" },
+      { code: "bengaluru", name: "Bulgaria Visa Application Center ,Bengaluru" },
+      { code: "chennai", name: "Bulgaria Visa Application Center ,Chennai" },
+      { code: "kolkata", name: "Bulgaria Visa Application Center ,Kolkata" },
+      { code: "ahmedabad", name: "Bulgaria Visa Application Center ,Ahmedabad" },
+      { code: "chandigarh", name: "Bulgaria Visa Application Center ,Chandigarh" },
+      { code: "cochin", name: "Bulgaria Visa Application Center ,Cochin" },
+      { code: "goa", name: "Bulgaria Visa Application Center ,Goa" },
+      { code: "hyderabad", name: "Bulgaria Visa Application Center ,Hyderabad" },
+      { code: "jaipur", name: "Bulgaria Visa Application Center ,Jaipur" },
+      { code: "jalandhar", name: "Bulgaria Visa Application Center ,Jalandhar" },
+      { code: "pondicherry", name: "Bulgaria Visa Application Center ,Pondicherry" },
+      { code: "pune", name: "Bulgaria Visa Application Center ,Pune" },
+      { code: "trivandrum", name: "Bulgaria Visa Application Center ,Trivandrum" }
+    ];
+
+    function getCentreNameByCode(code) {
+      const c = VFS_CENTRES.find(item => item.code.toLowerCase() === (code || "delhi").toLowerCase());
+      return c ? c.name : `Bulgaria VAC, ${(code || 'Delhi').toUpperCase()}`;
+    }
+
+    function populateSubCategoryOptions(catVal, subSelectEl, activeSubVal) {
+      if (!subSelectEl) return;
+      subSelectEl.innerHTML = "";
+      const subs = VFS_CATEGORY_MAP[catVal] || [];
+      if (subs.length > 0) {
+        subs.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s;
+          opt.textContent = s;
+          subSelectEl.appendChild(opt);
+        });
+      } else {
+        const opt = document.createElement("option");
+        opt.value = activeSubVal || catVal || "Standard";
+        opt.textContent = activeSubVal || catVal || "Standard";
+        subSelectEl.appendChild(opt);
+      }
+      const custOpt = document.createElement("option");
+      custOpt.value = "__custom__";
+      custOpt.textContent = "Other / Custom...";
+      subSelectEl.appendChild(custOpt);
+
+      if (activeSubVal) {
+        let matched = false;
+        for (let i = 0; i < subSelectEl.options.length; i++) {
+          if (subSelectEl.options[i].value.toLowerCase() === activeSubVal.toLowerCase()) {
+            subSelectEl.selectedIndex = i;
+            matched = true;
+            break;
+          }
+        }
+        if (!matched && activeSubVal !== "__custom__") {
+          const newOpt = document.createElement("option");
+          newOpt.value = activeSubVal;
+          newOpt.textContent = activeSubVal;
+          subSelectEl.insertBefore(newOpt, custOpt);
+          subSelectEl.value = activeSubVal;
+        }
+      }
+    }
+
+    function syncTargetUI(city, category, subCategory) {
+      const normalizedCity = (city || "delhi").toLowerCase();
+      let normalizedCat = category || "Business";
+      let normalizedSub = subCategory || "Business Visa";
+
+      // If category was "Long Stay D visa", map category to "D visa"
+      if (normalizedCat.toLowerCase().includes("long stay") || normalizedCat.toLowerCase() === "d visa" || normalizedCat.toLowerCase() === "d-visa") {
+        normalizedCat = "D visa";
+        if (!normalizedSub || normalizedSub.toLowerCase().includes("business")) {
+          normalizedSub = "Long Stay D visa";
+        }
+      }
+
+      // Update Navbar Badges
+      const bCity = document.getElementById("badgeCity");
+      if (bCity) bCity.innerText = normalizedCity.toUpperCase();
+      const bCat = document.getElementById("badgeCategory");
+      if (bCat) bCat.innerText = normalizedCat;
+
+      // Update Hero Summary & Presets
+      const heroSum = document.getElementById("heroTargetSummary");
+      if (heroSum) {
+        heroSum.innerText = `${getCentreNameByCode(normalizedCity)} • ${normalizedCat} (${normalizedSub})`;
+      }
+
+      // Preset button highlights
+      const isBusiness = normalizedCat.toLowerCase() === "business";
+      const isDVisa = normalizedCat.toLowerCase().includes("d visa");
+      
+      const pBizHero = document.getElementById("heroPresetBusiness");
+      const pDH崩Hero = document.getElementById("heroPresetDVisa");
+      if (pBizHero) {
+        pBizHero.style.borderColor = isBusiness ? "var(--brand-orange)" : "var(--border)";
+        pBizHero.style.background = isBusiness ? "rgba(249, 115, 22, 0.25)" : "rgba(255, 255, 255, 0.05)";
+        pBizHero.style.color = isBusiness ? "#fff" : "#94a3b8";
+      }
+      if (pDH崩Hero) {
+        pDH崩Hero.style.borderColor = isDVisa ? "var(--brand-orange)" : "var(--border)";
+        pDH崩Hero.style.background = isDVisa ? "rgba(249, 115, 22, 0.25)" : "rgba(255, 255, 255, 0.05)";
+        pDH崩Hero.style.color = isDVisa ? "#fff" : "#94a3b8";
+      }
+
+      const pBizSide = document.getElementById("sidePresetBusiness");
+      const pDSide = document.getElementById("sidePresetDVisa");
+      if (pBizSide) {
+        pBizSide.style.borderColor = isBusiness ? "var(--brand-orange)" : "var(--border)";
+        pBizSide.style.background = isBusiness ? "rgba(249, 115, 22, 0.2)" : "rgba(255, 255, 255, 0.05)";
+        pBizSide.style.color = isBusiness ? "#fff" : "#94a3b8";
+      }
+      if (pDSide) {
+        pDSide.style.borderColor = isDVisa ? "var(--brand-orange)" : "var(--border)";
+        pDSide.style.background = isDVisa ? "rgba(249, 115, 22, 0.2)" : "rgba(255, 255, 255, 0.05)";
+        pDSide.style.color = isDVisa ? "#fff" : "#94a3b8";
+      }
+
+      // Update Sidebar Target Card Dropdowns
+      const sideCity = document.getElementById("sideTargetCity");
+      if (sideCity) sideCity.value = normalizedCity;
+
+      const sideCat = document.getElementById("sideVisaCategory");
+      const sideCatCustom = document.getElementById("sideVisaCategoryCustom");
+      if (sideCat) {
+        if (VFS_CATEGORY_MAP[normalizedCat]) {
+          sideCat.value = normalizedCat;
+          if (sideCatCustom) sideCatCustom.style.display = "none";
+        } else {
+          sideCat.value = "__custom__";
+          if (sideCatCustom) {
+            sideCatCustom.style.display = "block";
+            sideCatCustom.value = normalizedCat;
+          }
+        }
+      }
+
+      const sideSub = document.getElementById("sideVisaSubCategory");
+      const sideSubCustom = document.getElementById("sideVisaSubCategoryCustom");
+      if (sideSub) {
+        populateSubCategoryOptions(normalizedCat, sideSub, normalizedSub);
+        if (sideSub.value === "__custom__" && sideSubCustom) {
+          sideSubCustom.style.display = "block";
+          sideSubCustom.value = normalizedSub;
+        } else if (sideSubCustom) {
+          sideSubCustom.style.display = "none";
+        }
+      }
+
+      // Update Modal Form Inputs
+      const modalCity = document.getElementById("cfg_target_city");
+      if (modalCity) modalCity.value = normalizedCity;
+
+      const modalCat = document.getElementById("cfg_category");
+      const modalCatCustom = document.getElementById("cfg_category_custom");
+      if (modalCat) {
+        if (VFS_CATEGORY_MAP[normalizedCat]) {
+          modalCat.value = normalizedCat;
+          if (modalCatCustom) modalCatCustom.style.display = "none";
+        } else {
+          modalCat.value = "__custom__";
+          if (modalCatCustom) {
+            modalCatCustom.style.display = "block";
+            modalCatCustom.value = normalizedCat;
+          }
+        }
+      }
+
+      const modalSub = document.getElementById("cfg_sub_category");
+      const modalSubCustom = document.getElementById("cfg_sub_category_custom");
+      if (modalSub) {
+        populateSubCategoryOptions(normalizedCat, modalSub, normalizedSub);
+        if (modalSub.value === "__custom__" && modalSubCustom) {
+          modalSubCustom.style.display = "block";
+          modalSubCustom.value = normalizedSub;
+        } else if (modalSubCustom) {
+          modalSubCustom.style.display = "none";
+        }
+      }
+    }
+
+    function handleSidebarCategoryChange(val) {
+      const customInp = document.getElementById("sideVisaCategoryCustom");
+      if (val === "__custom__") {
+        if (customInp) customInp.style.display = "block";
+      } else {
+        if (customInp) customInp.style.display = "none";
+      }
+      const subEl = document.getElementById("sideVisaSubCategory");
+      const defaultSub = VFS_CATEGORY_MAP[val] ? VFS_CATEGORY_MAP[val][0] : "";
+      populateSubCategoryOptions(val, subEl, defaultSub);
+      handleSidebarTargetChange();
+    }
+
+    function handleSidebarTargetChange() {
+      applySidebarTargetChanges(false);
+    }
+
+    function handleSidebarCustomInput() {
+      applySidebarTargetChanges(false);
+    }
+
+    async function applySidebarTargetChanges(notifyUser = false) {
+      const city = document.getElementById("sideTargetCity").value;
+      let cat = document.getElementById("sideVisaCategory").value;
+      if (cat === "__custom__") {
+        cat = (document.getElementById("sideVisaCategoryCustom") ? document.getElementById("sideVisaCategoryCustom").value.trim() : "") || "Custom Category";
+      }
+      let sub = document.getElementById("sideVisaSubCategory").value;
+      if (sub === "__custom__") {
+        sub = (document.getElementById("sideVisaSubCategoryCustom") ? document.getElementById("sideVisaSubCategoryCustom").value.trim() : "") || "Custom Sub-Category";
+      }
+
+      syncTargetUI(city, cat, sub);
+
+      const feedback = document.getElementById("sideTargetFeedback");
+      const syncBadge = document.getElementById("sideTargetSyncBadge");
+      if (feedback) feedback.innerText = "⏳ Saving...";
+      if (syncBadge) {
+        syncBadge.style.display = "inline-flex";
+        syncBadge.innerText = "Saving...";
+      }
+
+      try {
+        const res = await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            TARGET_CITY: city,
+            VISA_CATEGORY: cat,
+            VISA_SUB_CATEGORY: sub
+          })
+        });
+        const resp = await res.json();
+        if (resp.success) {
+          if (feedback) feedback.innerText = "✓ Route Active & Saved";
+          if (syncBadge) {
+            syncBadge.innerText = "✓ Synced";
+            setTimeout(() => { if (syncBadge) syncBadge.style.display = "none"; }, 3500);
+          }
+          addLogLine(new Date().toLocaleTimeString(), "TARGET", `Target Route updated: ${getCentreNameByCode(city)} | Category: ${cat} (${sub})`);
+        }
+      } catch (e) {
+        if (feedback) feedback.innerText = "⚠️ Offline / Not saved";
+      }
+    }
+
+    async function applyTargetPreset(category, subCategory) {
+      let city = document.getElementById("sideTargetCity") ? document.getElementById("sideTargetCity").value : "delhi";
+      syncTargetUI(city, category, subCategory);
+      await applySidebarTargetChanges(true);
+    }
+
+    function onModalCategoryChange(val) {
+      const customInp = document.getElementById("cfg_category_custom");
+      if (val === "__custom__") {
+        if (customInp) customInp.style.display = "block";
+      } else {
+        if (customInp) customInp.style.display = "none";
+      }
+      const subEl = document.getElementById("cfg_sub_category");
+      const defaultSub = VFS_CATEGORY_MAP[val] ? VFS_CATEGORY_MAP[val][0] : "";
+      populateSubCategoryOptions(val, subEl, defaultSub);
+    }
+
+    function onModalSubCategoryChange(val) {
+      const customInp = document.getElementById("cfg_sub_category_custom");
+      if (val === "__custom__") {
+        if (customInp) customInp.style.display = "block";
+      } else {
+        if (customInp) customInp.style.display = "none";
+      }
+    }
+
+    function onModalTargetCityChange(val) {
+      // Syncs with selection
+    }
+
+    function onModalCustomInput() {
+      // Handled during submit
+    }
+
     // Load initial config into form and UI
     async function loadConfig() {
       try {
@@ -748,11 +1131,10 @@
 
         renderApplicantUI();
 
-        document.getElementById("cfg_target_city").value = (cfg.TARGET_CITY || "delhi").toLowerCase();
-        document.getElementById("cfg_category").value = cfg.VISA_CATEGORY || "Long Stay D visa";
-        document.getElementById("cfg_sub_category").value = cfg.VISA_SUB_CATEGORY || "Long Stay D visa";
-        document.getElementById("cfg_portal_url").value = cfg.PORTAL_URL || "";
+        // Sync Target Route Dropdowns across homepage and modal
+        syncTargetUI(cfg.TARGET_CITY, cfg.VISA_CATEGORY, cfg.VISA_SUB_CATEGORY);
 
+        document.getElementById("cfg_portal_url").value = cfg.PORTAL_URL || "";
         document.getElementById("cfg_vfs_email").value = cfg.VFS_EMAIL || "";
         document.getElementById("cfg_vfs_password").value = cfg.VFS_PASSWORD || "";
         document.getElementById("cfg_gmail_user").value = cfg.VFS_GMAIL_USER || "";
@@ -760,12 +1142,6 @@
         document.getElementById("cfg_browser_channel").value = (cfg.BROWSER_CHANNEL || "brave").toLowerCase();
         document.getElementById("cfg_headless").value = cfg.HEADLESS ? "true" : "false";
 
-        // Update target badges
-        document.getElementById("badgeCity").innerText = (cfg.TARGET_CITY || "delhi").toUpperCase();
-        document.getElementById("badgeCategory").innerText = cfg.VISA_CATEGORY || "Long Stay D visa";
-        document.getElementById("dispCentre").innerText = "Bulgaria VAC, " + (cfg.TARGET_CITY || "delhi").toUpperCase();
-        document.getElementById("dispCategory").innerText = cfg.VISA_CATEGORY || "Long Stay D visa";
-        document.getElementById("dispSubCategory").innerText = cfg.VISA_SUB_CATEGORY || "Long Stay D visa";
         document.getElementById("labelBrowser").innerHTML = `Browser: <strong>${(cfg.BROWSER_CHANNEL || 'brave').toUpperCase()}</strong>`;
         document.getElementById("labelMode").innerHTML = `<strong>${cfg.HEADLESS ? 'Headless (VPS)' : 'Visible Window'}</strong>`;
         document.getElementById("dispBrowserMode").innerText = cfg.HEADLESS ? "Headless (VPS Mode)" : "Visible Browser";
@@ -941,6 +1317,16 @@
       const formData = new FormData(form);
       const data = Object.fromEntries(formData.entries());
 
+      // Resolve custom values if selected in modal
+      if (data.VISA_CATEGORY === "__custom__") {
+        const cInp = document.getElementById("cfg_category_custom");
+        data.VISA_CATEGORY = (cInp ? cInp.value.trim() : "") || "Custom Category";
+      }
+      if (data.VISA_SUB_CATEGORY === "__custom__") {
+        const sInp = document.getElementById("cfg_sub_category_custom");
+        data.VISA_SUB_CATEGORY = (sInp ? sInp.value.trim() : "") || "Custom Sub-Category";
+      }
+
       // Include full applicants array
       data.applicants = currentApplicants;
 
@@ -978,6 +1364,17 @@
       btnStop.disabled = false;
       addLogLine(new Date().toLocaleTimeString(), "UI", `Starting session for ${currentApplicants.length} applicant(s)...`);
 
+      // Gather active route target from UI
+      let activeCity = document.getElementById("sideTargetCity") ? document.getElementById("sideTargetCity").value : "";
+      let activeCat = document.getElementById("sideVisaCategory") ? document.getElementById("sideVisaCategory").value : "";
+      if (activeCat === "__custom__" && document.getElementById("sideVisaCategoryCustom")) {
+        activeCat = document.getElementById("sideVisaCategoryCustom").value.trim();
+      }
+      let activeSubCat = document.getElementById("sideVisaSubCategory") ? document.getElementById("sideVisaSubCategory").value : "";
+      if (activeSubCat === "__custom__" && document.getElementById("sideVisaSubCategoryCustom")) {
+        activeSubCat = document.getElementById("sideVisaSubCategoryCustom").value.trim();
+      }
+
       const overlay = document.getElementById("screenOverlay");
       if (overlay) {
         overlay.classList.remove("hidden");
@@ -990,7 +1387,12 @@
         const res = await fetch("/api/start", { 
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ applicants: currentApplicants })
+          body: JSON.stringify({ 
+            applicants: currentApplicants,
+            TARGET_CITY: activeCity || undefined,
+            VISA_CATEGORY: activeCat || undefined,
+            VISA_SUB_CATEGORY: activeSubCat || undefined
+          })
         });
         const data = await res.json();
         if (!data.success) {
@@ -1579,9 +1981,15 @@
 
     async function saveActiveApplicantToDb() {
       const activeApp = currentApplicants[activeApplicantIdx] || currentApplicants[0] || {};
-      const targetCity = document.getElementById("cfg_target_city") ? document.getElementById("cfg_target_city").value : "delhi";
-      const visaCat = document.getElementById("cfg_category") ? document.getElementById("cfg_category").value : "Business";
-      const visaSubCat = document.getElementById("cfg_sub_category") ? document.getElementById("cfg_sub_category").value : "Business Visa";
+      const targetCity = document.getElementById("sideTargetCity") ? document.getElementById("sideTargetCity").value : (document.getElementById("cfg_target_city") ? document.getElementById("cfg_target_city").value : "delhi");
+      let visaCat = document.getElementById("sideVisaCategory") ? document.getElementById("sideVisaCategory").value : (document.getElementById("cfg_category") ? document.getElementById("cfg_category").value : "Business");
+      if (visaCat === "__custom__" && document.getElementById("sideVisaCategoryCustom")) {
+        visaCat = document.getElementById("sideVisaCategoryCustom").value.trim() || "Business";
+      }
+      let visaSubCat = document.getElementById("sideVisaSubCategory") ? document.getElementById("sideVisaSubCategory").value : (document.getElementById("cfg_sub_category") ? document.getElementById("cfg_sub_category").value : "Business Visa");
+      if (visaSubCat === "__custom__" && document.getElementById("sideVisaSubCategoryCustom")) {
+        visaSubCat = document.getElementById("sideVisaSubCategoryCustom").value.trim() || "Business Visa";
+      }
 
       const profilePayload = {
         profile_name: `${activeApp.first_name || 'Applicant'} ${activeApp.last_name || ''} (${targetCity.toUpperCase()})`.trim(),

@@ -916,7 +916,20 @@ class VFSAutomation:
                     selected_opt = opt
                     break
 
-        # 4. Fallback: keyboard typeahead
+        # 4. Bidirectional containment match (e.g. "D visa" in "Long Stay D visa" or vice-versa)
+        if not selected_opt and target_text:
+            t_low = target_text.strip().lower()
+            for opt in options:
+                txt = opt.inner_text().strip()
+                txt_low = txt.lower()
+                # Prevent "male" from matching "female"
+                if t_low == "male" and "female" in txt_low:
+                    continue
+                if (t_low in txt_low) or (txt_low in t_low and len(txt_low) >= 3):
+                    selected_opt = opt
+                    break
+
+        # 5. Fallback: keyboard typeahead
         if not selected_opt and target_text:
             try:
                 self.page.keyboard.type(target_text[:3])
@@ -930,7 +943,7 @@ class VFSAutomation:
             except Exception:
                 pass
 
-        # 5. Last resort substring match
+        # 6. Last resort substring match
         if not selected_opt and target_text:
             for opt in options:
                 txt = opt.inner_text().strip()
@@ -947,7 +960,7 @@ class VFSAutomation:
             self.report("FORM", f"Target '{target_text}' not explicitly matched. Selecting: '{first_txt}'")
             options[0].click()
 
-        self.page.wait_for_timeout(200)
+        self.page.wait_for_timeout(250)
         return option_texts
 
     def fill_appointment_details(self, centre: str = "", category: str = "", sub_category: str = "") -> bool:
@@ -955,9 +968,55 @@ class VFSAutomation:
         if not self.page:
             return False
 
-        target_centre = centre or self.cfg.TARGET_CITY or "delhi"
-        target_category = category or getattr(self.cfg, "VISA_CATEGORY", "Business") or "Business"
-        target_sub_category = sub_category or getattr(self.cfg, "VISA_SUB_CATEGORY", "Business Visa") or "Business Visa"
+        raw_centre = str(centre or self.cfg.TARGET_CITY or "delhi").strip()
+        raw_category = str(category or getattr(self.cfg, "VISA_CATEGORY", "Business") or "Business").strip()
+        raw_sub_category = str(sub_category or getattr(self.cfg, "VISA_SUB_CATEGORY", "Business Visa") or "Business Visa").strip()
+
+        # Official 15 VFS Global Application Centres in India
+        CITY_CENTRE_NAMES = {
+            "delhi": "Bulgaria Visa Application Center ,New Delhi",
+            "new delhi": "Bulgaria Visa Application Center ,New Delhi",
+            "mumbai": "Bulgaria Visa Application Center ,Mumbai",
+            "bengaluru": "Bulgaria Visa Application Center ,Bengaluru",
+            "bangalore": "Bulgaria Visa Application Center ,Bengaluru",
+            "chennai": "Bulgaria Visa Application Center ,Chennai",
+            "kolkata": "Bulgaria Visa Application Center ,Kolkata",
+            "ahmedabad": "Bulgaria Visa Application Center ,Ahmedabad",
+            "chandigarh": "Bulgaria Visa Application Center ,Chandigarh",
+            "cochin": "Bulgaria Visa Application Center ,Cochin",
+            "kochi": "Bulgaria Visa Application Center ,Cochin",
+            "goa": "Bulgaria Visa Application Center ,Goa",
+            "hyderabad": "Bulgaria Visa Application Center ,Hyderabad",
+            "jaipur": "Bulgaria Visa Application Center ,Jaipur",
+            "jalandhar": "Bulgaria Visa Application Center ,Jalandhar",
+            "pondicherry": "Bulgaria Visa Application Center ,Pondicherry",
+            "puducherry": "Bulgaria Visa Application Center ,Pondicherry",
+            "pune": "Bulgaria Visa Application Center ,Pune",
+            "trivandrum": "Bulgaria Visa Application Center ,Trivandrum",
+            "thiruvananthapuram": "Bulgaria Visa Application Center ,Trivandrum",
+        }
+        target_centre = CITY_CENTRE_NAMES.get(raw_centre.lower(), raw_centre)
+
+        # Normalize category for VFS Bulgaria Angular portal
+        cat_lower = raw_category.lower()
+        if "d visa" in cat_lower or "long stay" in cat_lower or "national" in cat_lower:
+            target_category = "D visa"
+            target_sub_category = raw_sub_category if ("business" not in raw_sub_category.lower() and "short" not in raw_sub_category.lower()) else "Long Stay D visa"
+        elif "business" in cat_lower:
+            target_category = "Business"
+            target_sub_category = raw_sub_category if raw_sub_category and "stay" not in raw_sub_category.lower() else "Business Visa"
+        elif "short" in cat_lower or "schengen" in cat_lower:
+            target_category = "Short Stay"
+            target_sub_category = raw_sub_category or "Tourist Visa"
+        elif "seasonal" in cat_lower:
+            target_category = "Seasonal worker"
+            target_sub_category = "Seasonal worker"
+        elif "embassy" in cat_lower:
+            target_category = "Embassy approved interview"
+            target_sub_category = "Embassy approved interview"
+        else:
+            target_category = raw_category
+            target_sub_category = raw_sub_category
 
         self.report("FORM", f"Selecting Application Centre (target: '{target_centre}')...")
 
@@ -969,9 +1028,10 @@ class VFSAutomation:
 
         # Dynamic wait for Category dropdown to become active
         try:
-            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=6000)
+            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=7000)
         except Exception:
             pass
+        self.page.wait_for_timeout(400)
 
         # 2. Appointment Category
         self.report("FORM", f"Selecting Appointment Category (target: '{target_category}')...")
@@ -982,9 +1042,10 @@ class VFSAutomation:
 
         # Dynamic wait for Sub-Category dropdown to become active
         try:
-            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=6000)
+            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner, .cdk-overlay-backdrop').wait_for(state="hidden", timeout=7000)
         except Exception:
             pass
+        self.page.wait_for_timeout(400)
 
         # 3. Sub-Category
         self.report("FORM", f"Selecting Sub-Category (target: '{target_sub_category}')...")
@@ -994,19 +1055,47 @@ class VFSAutomation:
         self.take_screenshot("12_sub_category_selected")
         self.take_screenshot("13_appointment_details_complete")
 
+        # Dynamic wait for portal slot calculation / alert notice
+        try:
+            self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner').wait_for(state="hidden", timeout=6000)
+        except Exception:
+            pass
+        self.page.wait_for_timeout(800)
+
+        # Check for slot notice alert on page
+        try:
+            msg_el = self.page.locator(
+                '.alert, .c-message, .c-brand-message, mat-card-subtitle, '
+                'text="Earliest available slot", text="We are sorry but no appointment slots", '
+                'text="no appointment slots are currently available"'
+            ).first
+            if msg_el.count() > 0 and msg_el.is_visible():
+                slot_txt = msg_el.inner_text().strip()
+                self.report("SLOT", f"Portal Availability Notice: '{slot_txt}'")
+        except Exception:
+            pass
+
         # Check if Continue button is enabled
         continue_btn = self.page.locator('button.btn-brand-orange:has-text("Continue"), button:has-text("Continue")').first
         if continue_btn.count() > 0 and continue_btn.is_visible():
-            self.report("FORM", "Clicking 'Continue' to advance to Your Details...")
             try:
-                continue_btn.click(timeout=4000)
+                is_disabled = continue_btn.get_attribute("disabled") is not None or "disabled" in (continue_btn.get_attribute("class") or "")
             except Exception:
-                continue_btn.click(force=True)
-            try:
-                self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner').wait_for(state="hidden", timeout=6000)
-            except Exception:
-                pass
-            self.take_screenshot("14_after_continue")
+                is_disabled = False
+
+            if not is_disabled:
+                self.report("FORM", "Slot available! Clicking 'Continue' to advance to Your Details...")
+                try:
+                    continue_btn.click(timeout=4000)
+                except Exception:
+                    continue_btn.click(force=True)
+                try:
+                    self.page.locator('.ngx-overlay, .spinner, mat-spinner, .loading-spinner').wait_for(state="hidden", timeout=8000)
+                except Exception:
+                    pass
+                self.take_screenshot("14_after_continue")
+            else:
+                self.report("SLOT", "Continue button is currently disabled by VFS (no slots currently available for this category).")
 
         return True
 
