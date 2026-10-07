@@ -208,95 +208,316 @@ def test_email_connection(to_email: str) -> Tuple[bool, str]:
 
 
 # =============================================================================
-# BROADCAST DISPATCHERS (Used by 24/7 Slot Watcher)
+# CLEAN DATE & CENTRE FORMATTING UTILITIES
 # =============================================================================
 
-def broadcast_slot_alert(
+def clean_slot_date(raw_text: Optional[str]) -> Optional[str]:
+    """Parse messy date strings from VFS portal into a clean format e.g. '15 October 2026'.
+    Returns None if text indicates no slots/no dates or is invalid."""
+    if not raw_text:
+        return None
+    s = str(raw_text).strip()
+    if any(k in s.lower() for k in [
+        'no date', 'no appointment', 'checking', 'unknown',
+        'error', 'none', 'not available', 'closed', 'currently no'
+    ]):
+        return None
+
+    # 1. Month DD, YYYY (e.g. October 15, 2026 or Oct 15, 2026)
+    m = re.search(r'([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,\s*(\d{4}\b)', s)
+    if m:
+        mth_str, d, y = m.group(1), int(m.group(2)), int(m.group(3))
+        for fmt in ('%B %d %Y', '%b %d %Y'):
+            try:
+                dt = datetime.strptime(f'{mth_str} {d} {y}', fmt)
+                return dt.strftime('%d %B %Y')
+            except Exception:
+                pass
+
+    # 2. DD/MM/YYYY or DD-MM-YYYY
+    m = re.search(r'(\b\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4}\b)', s)
+    if m:
+        d, mth, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            dt = datetime(y, mth, d)
+            return dt.strftime('%d %B %Y')
+        except Exception:
+            pass
+
+    # 3. YYYY-MM-DD
+    m = re.search(r'(\b\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2}\b)', s)
+    if m:
+        y, mth, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            dt = datetime(y, mth, d)
+            return dt.strftime('%d %B %Y')
+        except Exception:
+            pass
+
+    # 4. DD Month YYYY (e.g. 15 October 2026 or 15th Oct 2026)
+    m = re.search(r'(\b\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4}\b)', s)
+    if m:
+        d, mth_str, y = int(m.group(1)), m.group(2), int(m.group(3))
+        for fmt in ('%d %B %Y', '%d %b %Y'):
+            try:
+                dt = datetime.strptime(f'{d} {mth_str} {y}', fmt)
+                return dt.strftime('%d %B %Y')
+            except Exception:
+                pass
+
+    # If already a short clean date string without excess noise
+    cleaned = re.sub(r'^(earliest|available|appointment|date|on|is|\:|\-|\s)+', '', s, flags=re.I).strip()
+    return cleaned if 0 < len(cleaned) <= 30 else s[:30]
+
+
+def clean_centre_display(raw_centre: Optional[str]) -> str:
+    """Format centre string cleanly, e.g. 'Bulgaria VAC, New Delhi'."""
+    if not raw_centre:
+        return "Bulgaria VAC, New Delhi"
+    c = str(raw_centre).strip()
+    c = re.sub(r'\s*,\s*', ', ', c)
+    if "new delhi" in c.lower():
+        return "Bulgaria VAC, New Delhi"
+    return c
+
+
+def format_slot_change_telegram_message(
+    event_type: str,            # "AVAILABLE", "SHIFTED", "UNAVAILABLE"
     category: str,
-    date_found: str,
     centre: str,
-    screenshot_path: Optional[str] = None
-) -> Dict[str, Any]:
-    """Broadcast immediate alert to all configured Telegram and Email recipients."""
-    from vfs_db import get_slot_monitor_settings, get_all_users
-
-    settings = get_slot_monitor_settings()
-    users = get_all_users()
-
-    results = {
-        "category": category,
-        "date_found": date_found,
-        "centre": centre,
-        "telegram_sent": 0,
-        "email_sent": 0,
-        "errors": []
-    }
-
-    # 1. Prepare Message Contents
+    clean_date: Optional[str] = None,
+    previous_date: Optional[str] = None,
+    other_available: Optional[Dict[str, str]] = None
+) -> str:
+    """Create clean, focused Telegram message for appointment slot events."""
     portal_link = cfg.PORTAL_URL or "https://visa.vfsglobal.com/ind/en/bgr"
     booking_link = f"{portal_link}/book-an-appointment"
     timestamp_str = format_ist_display()
+    display_centre = clean_centre_display(centre)
 
-    # Telegram Formatted Alert
-    tg_text = (
-        f"🚨 <b>VFS APPOINTMENT SLOT DETECTED!</b> 🚨\n\n"
-        f"🎯 <b>Category:</b> <code>{category}</code>\n"
-        f"📅 <b>Available Date:</b> <b><u>{date_found}</u></b>\n"
-        f"📍 <b>Centre:</b> {centre}\n"
-        f"⏰ <b>Detected At (IST):</b> {timestamp_str}\n\n"
-        f"👉 <a href='{booking_link}'><b>Click Here to Open VFS Booking Portal</b></a>\n\n"
-        f"⚡ <i>Act immediately to reserve your appointment slot!</i>"
+    # Friendly category name
+    clean_cat = category.strip()
+
+    if event_type == "AVAILABLE":
+        return (
+            f"🟢 <b>VFS APPOINTMENT AVAILABLE</b>\n\n"
+            f"Hey, <b>{clean_cat}</b> is now available!\n\n"
+            f"📍 <b>Centre:</b> {display_centre}\n"
+            f"📅 <b>Date:</b> <b><u>{clean_date}</u></b>\n"
+            f"⏰ <b>Time (IST):</b> {timestamp_str}\n\n"
+            f"👉 <a href='{booking_link}'><b>Open VFS Booking Portal</b></a>\n\n"
+            f"⚡ <i>Act now before this appointment slot is taken!</i>"
+        )
+
+    elif event_type == "SHIFTED":
+        return (
+            f"🔄 <b>VFS APPOINTMENT DATE SHIFTED</b>\n\n"
+            f"Hey, <b>{clean_cat}</b> appointment date has shifted!\n\n"
+            f"📍 <b>Centre:</b> {display_centre}\n"
+            f"📅 <b>Previous Date:</b> {previous_date or 'N/A'}\n"
+            f"📅 <b>New Date:</b> <b><u>{clean_date}</u></b>\n"
+            f"⏰ <b>Time (IST):</b> {timestamp_str}\n\n"
+            f"👉 <a href='{booking_link}'><b>Open VFS Booking Portal</b></a>\n\n"
+            f"⚡ <i>Review new date and book if suitable!</i>"
+        )
+
+    elif event_type == "UNAVAILABLE":
+        other_block = ""
+        if other_available:
+            items = []
+            for oc, od in other_available.items():
+                if oc != clean_cat and od:
+                    items.append(f"• <b>{oc}:</b> <u>{od}</u>")
+            if items:
+                other_block = "\n\n📌 <b>Other Available Categories:</b>\n" + "\n".join(items)
+        if not other_block:
+            other_block = "\n\n📌 <b>Other Categories:</b> None currently available"
+
+        return (
+            f"🔴 <b>VFS APPOINTMENT NOT AVAILABLE</b>\n\n"
+            f"Hey, <b>{clean_cat}</b> is not available suddenly.\n\n"
+            f"📍 <b>Centre:</b> {display_centre}\n"
+            f"⚠️ <b>Status:</b> No date available\n"
+            f"📅 <b>Previous Date:</b> {previous_date or 'N/A'}\n"
+            f"⏰ <b>Time (IST):</b> {timestamp_str}"
+            f"{other_block}\n\n"
+            f"<i>24/7 Monitoring active. You will be alerted the moment a slot opens!</i>"
+        )
+
+    return (
+        f"🔔 <b>VFS APPOINTMENT UPDATE</b>\n\n"
+        f"Hey, update for <b>{clean_cat}</b>:\n\n"
+        f"📍 <b>Centre:</b> {display_centre}\n"
+        f"📅 <b>Date:</b> {clean_date or 'N/A'}\n"
+        f"⏰ <b>Time (IST):</b> {timestamp_str}\n\n"
+        f"👉 <a href='{booking_link}'><b>Open VFS Booking Portal</b></a>"
     )
 
-    # HTML Email Alert
-    email_subject = f"🚨 VFS SLOT AVAILABLE: {category} — {date_found} ({centre})"
-    email_html = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0b132b; color: #f8fafc; border: 2px solid #f97316; border-radius: 12px; padding: 24px;">
+
+def format_slot_change_email(
+    event_type: str,
+    category: str,
+    centre: str,
+    clean_date: Optional[str] = None,
+    previous_date: Optional[str] = None,
+    other_available: Optional[Dict[str, str]] = None
+) -> Tuple[str, str]:
+    """Return subject and HTML content for slot change email notification."""
+    portal_link = cfg.PORTAL_URL or "https://visa.vfsglobal.com/ind/en/bgr"
+    booking_link = f"{portal_link}/book-an-appointment"
+    timestamp_str = format_ist_display()
+    display_centre = clean_centre_display(centre)
+
+    if event_type == "AVAILABLE":
+        subject = f"🟢 VFS SLOT AVAILABLE: {category} — {clean_date} ({display_centre})"
+        badge_color = "#22c55e"
+        badge_text = "🟢 SLOT AVAILABLE"
+        main_headline = f"Hey, {category} is now available!"
+        date_rows = f"""
+          <tr>
+            <td style="padding: 8px 0; color: #94a3b8; font-size: 14px;">Available Date:</td>
+            <td style="padding: 8px 0; font-weight: 800; color: #4ade80; font-size: 18px;">{clean_date}</td>
+          </tr>
+        """
+        other_block_html = ""
+    elif event_type == "SHIFTED":
+        subject = f"🔄 VFS SLOT SHIFTED: {category} — Now {clean_date} (Was {previous_date})"
+        badge_color = "#38bdf8"
+        badge_text = "🔄 DATE SHIFTED"
+        main_headline = f"Hey, {category} appointment date has shifted!"
+        date_rows = f"""
+          <tr>
+            <td style="padding: 8px 0; color: #94a3b8; font-size: 14px;">Previous Date:</td>
+            <td style="padding: 8px 0; color: #94a3b8; text-decoration: line-through; font-size: 15px;">{previous_date or 'N/A'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #94a3b8; font-size: 14px;">New Available Date:</td>
+            <td style="padding: 8px 0; font-weight: 800; color: #38bdf8; font-size: 18px;">{clean_date}</td>
+          </tr>
+        """
+        other_block_html = ""
+    else:  # UNAVAILABLE
+        subject = f"🔴 VFS SLOT UNAVAILABLE: {category} is no longer available (Was {previous_date})"
+        badge_color = "#ef4444"
+        badge_text = "🔴 SLOT CLOSED"
+        main_headline = f"Hey, {category} is not available suddenly."
+        other_items = ""
+        if other_available:
+            for oc, od in other_available.items():
+                if oc != category and od:
+                    other_items += f"<li style='color:#cbd5e1; margin:4px 0;'><strong>{oc}:</strong> <span style='color:#4ade80;'>{od}</span></li>"
+        other_block_html = f"<div style='margin-top:16px;'><strong style='color:#94a3b8;'>Other Available Categories:</strong><ul style='padding-left:20px; margin:6px 0;'>{other_items}</ul></div>" if other_items else "<p style='color:#64748b; font-size:13px; margin-top:12px;'>No other categories currently have slots.</p>"
+        date_rows = f"""
+          <tr>
+            <td style="padding: 8px 0; color: #94a3b8; font-size: 14px;">Status:</td>
+            <td style="padding: 8px 0; font-weight: bold; color: #f87171; font-size: 15px;">No date available suddenly</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #94a3b8; font-size: 14px;">Previously Available:</td>
+            <td style="padding: 8px 0; color: #cbd5e1; font-size: 14px;">{previous_date or 'N/A'}</td>
+          </tr>
+        """
+
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0b132b; color: #f8fafc; border: 2px solid {badge_color}; border-radius: 12px; padding: 24px;">
       <div style="text-align: center; margin-bottom: 20px;">
-        <span style="background: #f97316; color: #000; font-weight: 800; font-size: 13px; padding: 4px 12px; border-radius: 20px; text-transform: uppercase;">🔥 Immediate Action Required</span>
-        <h1 style="color: #ffffff; margin: 12px 0 6px 0; font-size: 24px;">Appointment Date Available!</h1>
+        <span style="background: {badge_color}; color: #000; font-weight: 800; font-size: 13px; padding: 4px 12px; border-radius: 20px; text-transform: uppercase;">{badge_text}</span>
+        <h1 style="color: #ffffff; margin: 12px 0 6px 0; font-size: 22px;">{main_headline}</h1>
         <p style="color: #94a3b8; margin: 0; font-size: 14px;">VFS Global Bulgaria Appointment Monitor</p>
       </div>
 
       <div style="background: rgba(30, 41, 59, 0.8); border: 1px solid #334155; border-radius: 10px; padding: 20px; margin-bottom: 24px;">
         <table style="width: 100%; border-collapse: collapse;">
           <tr>
-            <td style="padding: 8px 0; color: #94a3b8; font-size: 14px;">Target Category:</td>
-            <td style="padding: 8px 0; font-weight: bold; color: #38bdf8; font-size: 15px;">{category}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; color: #94a3b8; font-size: 14px;">Available Date:</td>
-            <td style="padding: 8px 0; font-weight: 800; color: #4ade80; font-size: 18px;">{date_found}</td>
+            <td style="padding: 8px 0; color: #94a3b8; font-size: 14px;">Visa Category:</td>
+            <td style="padding: 8px 0; font-weight: bold; color: #f1f5f9; font-size: 15px;">{category}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #94a3b8; font-size: 14px;">Application Centre:</td>
-            <td style="padding: 8px 0; color: #f1f5f9; font-size: 14px;">{centre}</td>
+            <td style="padding: 8px 0; color: #f1f5f9; font-size: 14px;">{display_centre}</td>
           </tr>
+          {date_rows}
           <tr>
-            <td style="padding: 8px 0; color: #94a3b8; font-size: 14px;">Detection Time:</td>
+            <td style="padding: 8px 0; color: #94a3b8; font-size: 14px;">Detection Time (IST):</td>
             <td style="padding: 8px 0; color: #cbd5e1; font-size: 13px;">{timestamp_str}</td>
           </tr>
         </table>
+        {other_block_html}
       </div>
 
-      <div style="text-align: center; margin: 24px 0;">
-        <a href="{booking_link}" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: #ffffff; text-decoration: none; padding: 14px 28px; font-weight: 800; border-radius: 8px; font-size: 16px; display: inline-block; box-shadow: 0 4px 14px rgba(249, 115, 22, 0.4);">
-          Book Appointment Now &rarr;
+      <div style="text-align: center; margin: 20px 0;">
+        <a href="{booking_link}" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: #ffffff; text-decoration: none; padding: 12px 26px; font-weight: 800; border-radius: 8px; font-size: 15px; display: inline-block;">
+          Open VFS Booking Portal &rarr;
         </a>
       </div>
 
-      <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 24px; border-top: 1px solid #1e293b; padding-top: 16px;">
-        VFS Global Automation Suite 24/7 Slot Watcher &bull; Generated automatically.
+      <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 20px; border-top: 1px solid #1e293b; padding-top: 14px;">
+        VFS Global Automation Suite 24/7 Slot Watcher &bull; Real-time Change Notification
       </p>
     </div>
     """
+    return subject, html
+
+
+# =============================================================================
+# BROADCAST DISPATCHERS (Used by 24/7 Slot Watcher)
+# =============================================================================
+
+def broadcast_slot_change_alert(
+    event_type: str,            # "AVAILABLE", "SHIFTED", "UNAVAILABLE"
+    category: str,
+    centre: str,
+    clean_date: Optional[str] = None,
+    previous_date: Optional[str] = None,
+    other_available: Optional[Dict[str, str]] = None,
+    screenshot_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """Broadcast real-time slot state change alert via Telegram and Email."""
+    from vfs_db import get_slot_monitor_settings, get_all_users
+
+    settings = get_slot_monitor_settings()
+    users = get_all_users()
+
+    # Ensure clean dates
+    clean_date = clean_slot_date(clean_date) if clean_date else None
+    previous_date = clean_slot_date(previous_date) if previous_date else None
+
+    results = {
+        "event_type": event_type,
+        "category": category,
+        "clean_date": clean_date,
+        "previous_date": previous_date,
+        "centre": centre,
+        "telegram_sent": 0,
+        "email_sent": 0,
+        "errors": []
+    }
+
+    # 1. Format Message Contents
+    tg_text = format_slot_change_telegram_message(
+        event_type=event_type,
+        category=category,
+        centre=centre,
+        clean_date=clean_date,
+        previous_date=previous_date,
+        other_available=other_available
+    )
+
+    email_subject, email_html = format_slot_change_email(
+        event_type=event_type,
+        category=category,
+        centre=centre,
+        clean_date=clean_date,
+        previous_date=previous_date,
+        other_available=other_available
+    )
 
     # 2. Dispatch Telegram Alerts
     bot_token = settings.get("telegram_bot_token") or os.getenv("TELEGRAM_BOT_TOKEN", "")
     if bot_token and settings.get("telegram_enabled", 1):
         target_chat_ids = set()
-        
-        # Primary Chat ID
+
+        # Primary Chat IDs
         if settings.get("telegram_chat_id"):
             target_chat_ids.add(str(settings["telegram_chat_id"]).strip())
         if os.getenv("TELEGRAM_CHAT_ID"):
@@ -304,17 +525,17 @@ def broadcast_slot_alert(
 
         # Operator chat IDs
         for u in users:
-            if u.get("telegram_chat_id") and u.get("status") == "active":
+            if u.get("telegram_chat_id") and u.get("status") == "active" and u.get("telegram_notifications", 1):
                 target_chat_ids.add(str(u["telegram_chat_id"]).strip())
 
         for cid in target_chat_ids:
             if not cid:
                 continue
-            if screenshot_path and os.path.exists(screenshot_path):
+            if screenshot_path and os.path.exists(screenshot_path) and event_type == "AVAILABLE":
                 ok, msg = send_telegram_photo(bot_token, cid, screenshot_path, caption=tg_text)
             else:
                 ok, msg = send_telegram_message(bot_token, cid, tg_text)
-            
+
             if ok:
                 results["telegram_sent"] += 1
             else:
@@ -327,23 +548,42 @@ def broadcast_slot_alert(
             email_recipients.add(settings["notify_email"].strip())
         if cfg.APPLICANT_EMAIL:
             email_recipients.add(cfg.APPLICANT_EMAIL.strip())
-        
+
         # Add operator emails
         for u in users:
-            if u.get("email") and u.get("status") == "active":
+            if u.get("email") and u.get("status") == "active" and u.get("email_notifications", 1):
                 email_recipients.add(u["email"].strip())
 
         for rec in email_recipients:
             if not rec or "@" not in rec:
                 continue
-            ok, msg = send_email_alert(rec, email_subject, email_html, screenshot_path)
+            ok, msg = send_email_alert(
+                rec, email_subject, email_html,
+                screenshot_path if event_type == "AVAILABLE" else None
+            )
             if ok:
                 results["email_sent"] += 1
             else:
                 results["errors"].append(f"Email ({rec}): {msg}")
 
-    log.info(f"Broadcast alert completed: {results['telegram_sent']} Telegram, {results['email_sent']} Email.")
+    log.info(f"Broadcast {event_type} alert completed: {results['telegram_sent']} Telegram, {results['email_sent']} Email.")
     return results
+
+
+def broadcast_slot_alert(
+    category: str,
+    date_found: str,
+    centre: str,
+    screenshot_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """Broadcast immediate alert for an available slot (backward-compatible wrapper)."""
+    return broadcast_slot_change_alert(
+        event_type="AVAILABLE",
+        category=category,
+        centre=centre,
+        clean_date=date_found,
+        screenshot_path=screenshot_path
+    )
 
 
 def broadcast_daily_report(

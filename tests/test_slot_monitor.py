@@ -188,3 +188,153 @@ def test_d_visa_auto_trigger_callback():
     assert len(triggered) == 1
     assert triggered[0] == ("Long Stay D visa", "20 Nov 2026")
 
+
+def test_clean_slot_date_extraction():
+    """Verify robust date extraction and clean formatting."""
+    from vfs_notifications import clean_slot_date
+
+    assert clean_slot_date("15/10/2026") == "15 October 2026"
+    assert clean_slot_date("15-10-2026") == "15 October 2026"
+    assert clean_slot_date("2026-10-17") == "17 October 2026"
+    assert clean_slot_date("Earliest available: 15/10/2026") == "15 October 2026"
+    assert clean_slot_date("October 15, 2026") == "15 October 2026"
+    assert clean_slot_date("17 Oct 2026") == "17 October 2026"
+    assert clean_slot_date("No appointment date available") is None
+    assert clean_slot_date("No date available") is None
+    assert clean_slot_date("Checking...") is None
+    assert clean_slot_date("") is None
+
+
+def test_telegram_slot_change_message_formatting():
+    """Verify clean Telegram messages for AVAILABLE, SHIFTED, and UNAVAILABLE events."""
+    from vfs_notifications import format_slot_change_telegram_message
+
+    # 1. Available alert
+    msg_avail = format_slot_change_telegram_message(
+        event_type="AVAILABLE",
+        category="Long Stay D visa",
+        centre="Bulgaria Visa Application Center ,New Delhi",
+        clean_date="17 October 2026"
+    )
+    assert "🟢" in msg_avail
+    assert "Long Stay D visa" in msg_avail
+    assert "17 October 2026" in msg_avail
+    assert "Bulgaria VAC, New Delhi" in msg_avail
+    assert "Open VFS Booking Portal" in msg_avail
+
+    # 2. Date shifted alert
+    msg_shift = format_slot_change_telegram_message(
+        event_type="SHIFTED",
+        category="Business",
+        centre="Bulgaria Visa Application Center ,New Delhi",
+        clean_date="17 October 2026",
+        previous_date="15 October 2026"
+    )
+    assert "🔄" in msg_shift
+    assert "Business" in msg_shift
+    assert "Previous Date:" in msg_shift
+    assert "15 October 2026" in msg_shift
+    assert "New Date:" in msg_shift
+    assert "17 October 2026" in msg_shift
+
+    # 3. Not available suddenly alert with other categories
+    msg_unavail = format_slot_change_telegram_message(
+        event_type="UNAVAILABLE",
+        category="Business",
+        centre="Bulgaria Visa Application Center ,New Delhi",
+        clean_date=None,
+        previous_date="15 October 2026",
+        other_available={"Long Stay D visa": "20 November 2026"}
+    )
+    assert "🔴" in msg_unavail
+    assert "not available suddenly" in msg_unavail
+    assert "15 October 2026" in msg_unavail
+    assert "Other Available Categories:" in msg_unavail
+    assert "20 November 2026" in msg_unavail
+
+
+def test_slot_change_detection_flow():
+    """Verify category state tracking and event generation for new slots, shifts, and dropoffs."""
+    from vfs_notifications import clean_slot_date
+
+    states = {}
+    changes = []
+
+    def process_check(results_data):
+        nonlocal changes
+        changes = []
+        for cat, raw in results_data.items():
+            cd = clean_slot_date(raw)
+            avail = cd is not None
+            prev = states.get(cat)
+
+            if prev is None:
+                states[cat] = {"is_available": avail, "clean_date": cd}
+                if avail:
+                    changes.append(("AVAILABLE", cat, cd, None))
+            else:
+                prev_avail = prev["is_available"]
+                prev_date = prev["clean_date"]
+                if not prev_avail and avail:
+                    states[cat] = {"is_available": True, "clean_date": cd}
+                    changes.append(("AVAILABLE", cat, cd, prev_date))
+                elif prev_avail and avail and prev_date != cd:
+                    states[cat] = {"is_available": True, "clean_date": cd}
+                    changes.append(("SHIFTED", cat, cd, prev_date))
+                elif prev_avail and not avail:
+                    states[cat] = {"is_available": False, "clean_date": None}
+                    changes.append(("UNAVAILABLE", cat, None, prev_date))
+
+    # Cycle 1: Baseline, Business not available
+    process_check({"Business": "No date available", "Long Stay D visa": "No date available"})
+    assert len(changes) == 0
+
+    # Cycle 2: Business becomes available on 15 Oct (Event: AVAILABLE)
+    process_check({"Business": "15/10/2026", "Long Stay D visa": "No date available"})
+    assert len(changes) == 1
+    assert changes[0] == ("AVAILABLE", "Business", "15 October 2026", None)
+
+    # Cycle 3: Business shifts from 15 Oct to 17 Oct (Event: SHIFTED)
+    process_check({"Business": "17/10/2026", "Long Stay D visa": "No date available"})
+    assert len(changes) == 1
+    assert changes[0] == ("SHIFTED", "Business", "17 October 2026", "15 October 2026")
+
+    # Cycle 4: Business suddenly becomes unavailable (Event: UNAVAILABLE)
+    process_check({"Business": "No date available", "Long Stay D visa": "No date available"})
+    assert len(changes) == 1
+    assert changes[0] == ("UNAVAILABLE", "Business", None, "17 October 2026")
+
+
+def test_api_slot_monitor_test_alert(client):
+    """Verify /api/slot_monitor/test_alert endpoint dispatches test alerts."""
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "superadmin"
+        sess["role"] = "super_admin"
+
+    from unittest.mock import patch
+    with patch("vfs_notifications.broadcast_slot_change_alert") as mock_broadcast:
+        mock_broadcast.return_value = {
+            "event_type": "AVAILABLE",
+            "category": "Long Stay D visa",
+            "clean_date": "20 November 2026",
+            "previous_date": None,
+            "centre": "Bulgaria Visa Application Center ,New Delhi",
+            "telegram_sent": 1,
+            "email_sent": 1,
+            "errors": []
+        }
+        res = client.post("/api/slot_monitor/test_alert", json={
+            "event_type": "AVAILABLE",
+            "category": "Long Stay D visa",
+            "clean_date": "20 November 2026"
+        })
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["success"] is True
+        assert "results" in data
+        assert data["results"]["event_type"] == "AVAILABLE"
+        assert data["results"]["clean_date"] == "20 November 2026"
+        assert mock_broadcast.called
+
+

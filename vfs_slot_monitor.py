@@ -64,6 +64,7 @@ class VFSSlotMonitor:
             "Seasonal worker": "Checking...",
             "Embassy approved interview": "Checking..."
         }
+        self.category_states: Dict[str, Dict[str, Any]] = {}
         self.last_centre: str = "Bulgaria Visa Application Center ,New Delhi"
         self.last_found_date: Optional[str] = None
         self.total_checks_today: int = 0
@@ -72,6 +73,23 @@ class VFSSlotMonitor:
         self.last_alert_date_sent: Optional[str] = None
         self.last_error: Optional[str] = None
         self.recent_history: List[Dict[str, Any]] = []
+
+        # Attempt to restore previous category states from last DB check
+        try:
+            latest_check = vfs_db.get_latest_slot_check()
+            if latest_check and latest_check.get("all_categories_json"):
+                cats = json.loads(latest_check["all_categories_json"])
+                if isinstance(cats, dict):
+                    for k, v in cats.items():
+                        c_date = vfs_notifications.clean_slot_date(v)
+                        self.category_states[k] = {
+                            "is_available": c_date is not None,
+                            "clean_date": c_date,
+                            "raw": str(v)
+                        }
+                    self.last_status.update(cats)
+        except Exception as _e:
+            log.debug(f"Initial slot state restore note: {_e}")
 
     def get_status(self) -> Dict[str, Any]:
         """Return current slot monitor status for dashboard and APIs."""
@@ -91,6 +109,7 @@ class VFSSlotMonitor:
                 "target_category": "Long Stay D visa",
                 "last_check_time": format_ist_dt(self.last_check_time) if self.last_check_time else None,
                 "last_status": self.last_status,
+                "category_states": dict(self.category_states),
                 "d_visa_status": d_visa_status,
                 "is_d_visa_available": is_d_available,
                 "last_found_date": self.last_found_date,
@@ -341,25 +360,108 @@ class VFSSlotMonitor:
             log.debug(f"DB slot check record error: {e}")
 
         # -------------------------------------------------------------
-        # ALERT DISPATCH LOGIC (Instant Notification on Available Date)
+        # REAL-TIME SLOT CHANGE DETECTION & INSTANT NOTIFICATIONS
         # -------------------------------------------------------------
-        if is_available:
-            # Prevent sending duplicate notifications for the exact same date within 20 minutes
-            should_alert = False
-            with self.lock:
-                if self.last_alert_date_sent != target_status:
-                    should_alert = True
-                    self.last_alert_date_sent = target_status
+        slot_changes_detected = []
+        with self.lock:
+            # Map of all currently available categories and their clean dates
+            current_available_map = {}
+            for cat_name, raw_val in self.last_status.items():
+                cd = vfs_notifications.clean_slot_date(raw_val)
+                if cd:
+                    current_available_map[cat_name] = cd
 
-            if should_alert:
-                log.info(f"Triggering immediate Telegram & Email alerts for {target_category}: {target_status}...")
-                alert_res = vfs_notifications.broadcast_slot_alert(
-                    category=target_category,
-                    date_found=target_status,
+            # Compare every category with previous recorded state
+            for cat_name, raw_val in self.last_status.items():
+                curr_raw = str(raw_val or "").strip()
+                curr_clean_date = vfs_notifications.clean_slot_date(curr_raw)
+                curr_is_available = curr_clean_date is not None
+
+                prev = self.category_states.get(cat_name)
+
+                if prev is None:
+                    # First observation of this category
+                    self.category_states[cat_name] = {
+                        "is_available": curr_is_available,
+                        "clean_date": curr_clean_date,
+                        "raw": curr_raw
+                    }
+                    if curr_is_available:
+                        # Newly detected available slot on first observation
+                        slot_changes_detected.append({
+                            "event_type": "AVAILABLE",
+                            "category": cat_name,
+                            "clean_date": curr_clean_date,
+                            "previous_date": None
+                        })
+                else:
+                    prev_is_available = prev.get("is_available", False)
+                    prev_clean_date = prev.get("clean_date")
+
+                    if not prev_is_available and curr_is_available:
+                        # 🟢 Event 1: Newly Available! (e.g. 6 am slot opens)
+                        log.info(f"🟢 [SLOT CHANGE] {cat_name} became AVAILABLE: {curr_clean_date}!")
+                        self.category_states[cat_name] = {
+                            "is_available": True,
+                            "clean_date": curr_clean_date,
+                            "raw": curr_raw
+                        }
+                        slot_changes_detected.append({
+                            "event_type": "AVAILABLE",
+                            "category": cat_name,
+                            "clean_date": curr_clean_date,
+                            "previous_date": prev_clean_date
+                        })
+
+                    elif prev_is_available and curr_is_available and prev_clean_date != curr_clean_date:
+                        # 🔄 Event 2: Date Shifted! (e.g. 15th Oct -> 17th Oct)
+                        log.info(f"🔄 [SLOT CHANGE] {cat_name} date SHIFTED: {prev_clean_date} -> {curr_clean_date}!")
+                        self.category_states[cat_name] = {
+                            "is_available": True,
+                            "clean_date": curr_clean_date,
+                            "raw": curr_raw
+                        }
+                        slot_changes_detected.append({
+                            "event_type": "SHIFTED",
+                            "category": cat_name,
+                            "clean_date": curr_clean_date,
+                            "previous_date": prev_clean_date
+                        })
+
+                    elif prev_is_available and not curr_is_available:
+                        # 🔴 Event 3: Suddenly Not Available!
+                        log.info(f"🔴 [SLOT CHANGE] {cat_name} is NOT AVAILABLE suddenly (was {prev_clean_date})!")
+                        self.category_states[cat_name] = {
+                            "is_available": False,
+                            "clean_date": None,
+                            "raw": curr_raw
+                        }
+                        slot_changes_detected.append({
+                            "event_type": "UNAVAILABLE",
+                            "category": cat_name,
+                            "clean_date": None,
+                            "previous_date": prev_clean_date
+                        })
+                    else:
+                        self.category_states[cat_name]["raw"] = curr_raw
+
+        # Dispatch real-time Telegram and Email notifications for each detected change
+        for chg in slot_changes_detected:
+            other_cats = {k: v for k, v in current_available_map.items() if k != chg["category"]}
+            log.info(f"Triggering instant {chg['event_type']} alert for {chg['category']} (date: {chg['clean_date'] or chg['previous_date']})...")
+            try:
+                alert_res = vfs_notifications.broadcast_slot_change_alert(
+                    event_type=chg["event_type"],
+                    category=chg["category"],
                     centre=target_centre,
-                    screenshot_path=screenshot_path
+                    clean_date=chg["clean_date"],
+                    previous_date=chg["previous_date"],
+                    other_available=other_cats,
+                    screenshot_path=screenshot_path if chg["event_type"] == "AVAILABLE" else None
                 )
-                log.info(f"Alert dispatch summary: {alert_res}")
+                log.info(f"Alert dispatch summary for {chg['category']}: {alert_res}")
+            except Exception as _ex:
+                log.error(f"Error broadcasting slot change alert: {_ex}")
 
         # -------------------------------------------------------------
         # D-VISA & WORK APPOINTMENT AUTO-TRIGGER LOGIC

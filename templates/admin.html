@@ -1141,7 +1141,18 @@ pm2 save</pre>
             </label>
           </div>
 
-          <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button type="button" class="btn btn-secondary" onclick="testSlotAlert('AVAILABLE')" style="font-size: 0.82rem;" title="Test sending an 'Available' Telegram alert">
+                🟢 Test Slot Open
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="testSlotAlert('SHIFTED')" style="font-size: 0.82rem;" title="Test sending a 'Date Shifted' Telegram alert">
+                🔄 Test Date Shifted
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="testSlotAlert('UNAVAILABLE')" style="font-size: 0.82rem;" title="Test sending a 'Slot Closed' Telegram alert">
+                🔴 Test Slot Closed
+              </button>
+            </div>
             <button type="submit" class="btn btn-primary" id="btnSaveSlotSettings">
               💾 Save Alert & Telegram Settings
             </button>
@@ -1995,6 +2006,32 @@ pm2 save</pre>
         }
       } catch (e) {
         alert('Network error testing email alert.');
+      }
+    }
+
+    async function testSlotAlert(eventType) {
+      const cat = document.getElementById('cfg_target_category').value || 'Business';
+      const centre = document.getElementById('cfg_target_centre').value || 'Bulgaria Visa Application Center ,New Delhi';
+      try {
+        const res = await fetch('/api/slot_monitor/test_alert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_type: eventType,
+            category: cat,
+            centre: centre,
+            clean_date: '17 October 2026',
+            previous_date: '15 October 2026'
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`✅ ${eventType} Alert Sent to Telegram & Email!\n\n` + data.message);
+        } else {
+          alert(`❌ Alert Failed:\n\n` + data.message);
+        }
+      } catch (e) {
+        alert('Network error testing slot alert: ' + e);
       }
     }
 

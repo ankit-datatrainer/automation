@@ -568,6 +568,37 @@ def slot_monitor_test_email():
     return jsonify({"success": False, "message": msg}), 400
 
 
+@app.route("/api/slot_monitor/test_alert", methods=["POST"])
+@login_required
+def slot_monitor_test_alert():
+    """Test dispatching real-time slot change notifications (AVAILABLE, SHIFTED, or UNAVAILABLE)."""
+    data = request.get_json(force=True, silent=True) or {}
+    event_type = data.get("event_type", "AVAILABLE").strip().upper()
+    category = data.get("category", "Business").strip()
+    clean_date = data.get("clean_date", "17 October 2026")
+    previous_date = data.get("previous_date", "15 October 2026")
+    centre = data.get("centre", "Bulgaria Visa Application Center ,New Delhi")
+    other_available = data.get("other_available") or {
+        "Long Stay D visa": "20 November 2026",
+        "Seasonal worker": "18 October 2026"
+    }
+
+    results = vfs_notifications.broadcast_slot_change_alert(
+        event_type=event_type,
+        category=category,
+        centre=centre,
+        clean_date=clean_date if event_type in ("AVAILABLE", "SHIFTED") else None,
+        previous_date=previous_date if event_type in ("SHIFTED", "UNAVAILABLE") else None,
+        other_available=other_available
+    )
+    push_log("NOTIFY", f"Tested slot change alert ({event_type} for {category}): {results['telegram_sent']} Telegram, {results['email_sent']} Email.")
+    return jsonify({
+        "success": True,
+        "message": f"Dispatched {event_type} alert test to {results['telegram_sent']} Telegram chat(s) and {results['email_sent']} recipient(s).",
+        "results": results
+    })
+
+
 @app.route("/api/slot_monitor/history", methods=["GET"])
 @login_required
 def slot_monitor_history():

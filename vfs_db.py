@@ -1549,6 +1549,20 @@ def get_recent_slot_checks(limit: int = 50) -> List[Dict[str, Any]]:
         return []
 
 
+def get_latest_slot_check() -> Optional[Dict[str, Any]]:
+    """Fetch the most recent slot check record."""
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM slot_checks_history ORDER BY id DESC LIMIT 1")
+            row = cur.fetchone()
+        conn.close()
+        return row
+    except Exception as e:
+        log.warning(f"Error fetching latest slot check: {e}")
+        return None
+
+
 def update_user_notifications(
     user_id: int,
     telegram_chat_id: str,
