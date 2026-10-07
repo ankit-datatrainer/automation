@@ -746,6 +746,9 @@
       <button class="tab-btn active" onclick="switchAdminTab('users', this)">
         <span>👤 User Management</span>
       </button>
+      <button class="tab-btn" onclick="switchAdminTab('vfs-accounts', this)">
+        <span>🔐 VFS Accounts & OTP</span>
+      </button>
       <button class="tab-btn" onclick="switchAdminTab('watcher', this)">
         <span>🚨 24/7 Slot Watcher & Telegram</span>
       </button>
@@ -793,6 +796,54 @@
             <tbody id="usersTableBody">
               <tr>
                 <td colspan="10" style="text-align:center; padding: 2rem; color: #94a3b8;">Loading user accounts...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: VFS ACCOUNTS & GMAIL OTP MANAGEMENT -->
+    <section id="tab-vfs-accounts" class="tab-panel">
+      <div class="section-bar">
+        <div class="section-title">
+          <h2>VFS Portal Accounts & Gmail OTP Credentials</h2>
+          <p>Super Admin control center: manage VFS logins, assign accounts to specific operators, activate accounts, and test live Gmail OTP extraction.</p>
+        </div>
+        <div class="action-group">
+          <button class="btn btn-secondary" onclick="fetchVfsAccounts()">
+            <span>🔄 Refresh</span>
+          </button>
+          <button class="btn btn-primary" onclick="openCreateVfsAccountModal()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Add VFS Account</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <div class="table-responsive">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Account Label</th>
+                <th>VFS Portal Email</th>
+                <th>VFS Password</th>
+                <th>Gmail User (OTP)</th>
+                <th>App Password</th>
+                <th>Assigned Operator</th>
+                <th>Status</th>
+                <th>Active</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="vfsAccountsTableBody">
+              <tr>
+                <td colspan="10" style="text-align:center; padding: 2rem; color: #94a3b8;">Loading VFS accounts...</td>
               </tr>
             </tbody>
           </table>
@@ -1246,6 +1297,84 @@ pm2 save</pre>
     </div>
   </div>
 
+  <!-- Create / Edit VFS Account Modal -->
+  <div class="admin-modal-backdrop" id="vfsAccountModal">
+    <div class="admin-modal" style="max-width: 580px;">
+      <div class="admin-modal-header">
+        <h3 id="vfsModalTitle">Add VFS Account & OTP Credentials</h3>
+        <button class="admin-modal-close" onclick="closeVfsAccountModal()">&times;</button>
+      </div>
+      <form onsubmit="handleSaveVfsAccount(event)">
+        <input type="hidden" id="vfsAccountId">
+        <div class="admin-modal-body">
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Account Label / Friendly Name</label>
+            <input type="text" id="vfsAccountName" class="form-control" placeholder="e.g. Milan - Bulgaria VFS (or Operator 1 Primary)">
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom:1rem;">
+            <div class="form-group">
+              <label class="form-label">VFS Portal Email *</label>
+              <input type="email" id="vfsEmail" class="form-control" required placeholder="oli930110@gmail.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">VFS Portal Password *</label>
+              <div style="position:relative;">
+                <input type="password" id="vfsPassword" class="form-control" required placeholder="••••••••">
+                <button type="button" onclick="toggleInputType('vfsPassword')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:#94a3b8; cursor:pointer;" title="Toggle visibility">👁️</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="background:rgba(30, 41, 59, 0.6); border:1px solid rgba(255, 255, 255, 0.08); border-radius:10px; padding:1rem; margin-bottom:1rem;">
+            <div style="font-size:0.85rem; font-weight:700; color:#38bdf8; margin-bottom:0.75rem; display:flex; align-items:center; gap:0.4rem;">
+              <span>📧 Gmail IMAP OTP Retrieval Credentials</span>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+              <div class="form-group">
+                <label class="form-label">Gmail Address for OTP</label>
+                <input type="email" id="vfsGmailUser" class="form-control" placeholder="ankit.developer2004@gmail.com">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Gmail App Password (16-char)</label>
+                <div style="position:relative;">
+                  <input type="password" id="vfsGmailAppPwd" class="form-control" placeholder="xxxx xxxx xxxx xxxx">
+                  <button type="button" onclick="toggleInputType('vfsGmailAppPwd')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:#94a3b8; cursor:pointer;" title="Toggle visibility">👁️</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom:1rem;">
+            <div class="form-group">
+              <label class="form-label">Assigned Operator</label>
+              <select id="vfsOperatorSelect" class="form-control">
+                <option value="">🌐 Shared (All Operators)</option>
+              </select>
+              <small style="color:#64748b; font-size:0.75rem;">Assign this account to an operator or share.</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Account Status</label>
+              <select id="vfsStatus" class="form-control">
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Internal Notes (Optional)</label>
+            <textarea id="vfsNotes" class="form-control" rows="2" placeholder="e.g. D Visa Bulgaria applicant account for Milan..."></textarea>
+          </div>
+        </div>
+        <div class="admin-modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeVfsAccountModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveVfsAccount">Save Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     function escapeHtml(str) {
       if (str === null || str === undefined) return '';
@@ -1269,6 +1398,8 @@ pm2 save</pre>
         pollSlotMonitorStatus();
         loadSlotSettings();
         fetchSlotChecksHistory();
+      } else if (tabKey === 'vfs-accounts') {
+        fetchVfsAccounts();
       }
     }
 
@@ -1929,11 +2060,244 @@ pm2 save</pre>
       if (el) el.textContent = getAdminISTTime();
     }
 
+    // ==========================================
+    // VFS ACCOUNTS & GMAIL OTP CONTROLLER
+    // ==========================================
+    let cachedVfsAccounts = [];
+    let cachedSystemUsers = [];
+
+    async function fetchVfsAccounts() {
+      try {
+        const res = await fetch('/api/admin/vfs_accounts');
+        const data = await res.json();
+        if (!data.success) return;
+        cachedVfsAccounts = data.accounts || [];
+        cachedSystemUsers = data.users || [];
+        renderVfsAccounts(data.accounts, data.active_account_id);
+        populateOperatorDropdown(data.users);
+      } catch (e) {
+        console.error("Error fetching VFS accounts:", e);
+      }
+    }
+
+    function populateOperatorDropdown(users) {
+      const select = document.getElementById('vfsOperatorSelect');
+      if (!select) return;
+      const currentVal = select.value;
+      select.innerHTML = '<option value="">🌐 Shared (All Operators)</option>';
+      (users || []).forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = `👤 ${u.username} (${u.full_name || 'Operator'})`;
+        select.appendChild(opt);
+      });
+      if (currentVal) select.value = currentVal;
+    }
+
+    function renderVfsAccounts(accounts, activeId) {
+      const tbody = document.getElementById('vfsAccountsTableBody');
+      if (!tbody) return;
+      if (!accounts || accounts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:2rem; color:#94a3b8;">No VFS accounts configured. Click "Add VFS Account" above.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = accounts.map(a => {
+        const isActive = (a.id === activeId || a.is_active === 1);
+        const activeBadge = isActive 
+          ? '<span style="display:inline-flex; align-items:center; gap:4px; color:#4ade80; font-weight:700; background:rgba(74,222,128,0.12); padding:3px 8px; border-radius:9999px; font-size:0.75rem;">⭐ ACTIVE</span>'
+          : `<button class="btn-act" style="font-size:0.75rem; padding:3px 8px;" onclick="selectVfsAccount(${a.id})">Set Active</button>`;
+        const opBadge = a.operator_username 
+          ? `<span style="background:rgba(99,102,241,0.15); color:#a5b4fc; padding:2px 8px; border-radius:6px; font-size:0.75rem; font-weight:600;">👤 ${escapeHtml(a.operator_username)}</span>`
+          : '<span style="background:rgba(148,163,184,0.12); color:#94a3b8; padding:2px 8px; border-radius:6px; font-size:0.75rem;">🌐 Shared</span>';
+        const statusBadge = a.status === 'active'
+          ? '<span class="status-badge active">Active</span>'
+          : '<span class="status-badge inactive">Inactive</span>';
+
+        return `
+          <tr>
+            <td><strong>#${a.id}</strong></td>
+            <td><span style="font-weight:600; color:#e2e8f0;">${escapeHtml(a.account_name || 'VFS Account')}</span></td>
+            <td><code style="color:#38bdf8; font-size:0.85rem;">${escapeHtml(a.vfs_email)}</code></td>
+            <td>
+              <span id="pwd_disp_${a.id}" style="font-family:monospace; color:#94a3b8;">••••••••</span>
+              <button type="button" onclick="toggleCellPassword('pwd_disp_${a.id}', '${escapeHtml(a.vfs_password)}')" style="background:none; border:none; cursor:pointer; color:#64748b; margin-left:4px;" title="View Password">👁️</button>
+            </td>
+            <td><code style="color:#cbd5e1; font-size:0.82rem;">${escapeHtml(a.gmail_user || '--')}</code></td>
+            <td>
+              <span id="gpwd_disp_${a.id}" style="font-family:monospace; color:#94a3b8;">••••••••</span>
+              <button type="button" onclick="toggleCellPassword('gpwd_disp_${a.id}', '${escapeHtml(a.gmail_app_password || '')}')" style="background:none; border:none; cursor:pointer; color:#64748b; margin-left:4px;" title="View Password">👁️</button>
+            </td>
+            <td>${opBadge}</td>
+            <td>${statusBadge}</td>
+            <td>${activeBadge}</td>
+            <td>
+              <div style="display:flex; gap:0.4rem; align-items:center;">
+                <button class="btn-act" onclick="testAccountOtp(${a.id})" title="Test Live Gmail IMAP Login">⚡ Test OTP</button>
+                <button class="btn-act" onclick="openEditVfsAccountModal(${a.id})" title="Edit Account">✏️</button>
+                <button class="btn-act danger" onclick="deleteVfsAccount(${a.id}, '${escapeHtml(a.vfs_email)}')" title="Delete Account">🗑️</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function toggleCellPassword(elementId, realPassword) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      if (el.textContent === '••••••••') {
+        el.textContent = realPassword;
+        el.style.color = '#f59e0b';
+      } else {
+        el.textContent = '••••••••';
+        el.style.color = '#94a3b8';
+      }
+    }
+
+    function toggleInputType(inputId) {
+      const inp = document.getElementById(inputId);
+      if (inp) {
+        inp.type = (inp.type === 'password') ? 'text' : 'password';
+      }
+    }
+
+    function openCreateVfsAccountModal() {
+      document.getElementById('vfsModalTitle').textContent = 'Add VFS Account & OTP Credentials';
+      document.getElementById('vfsAccountId').value = '';
+      document.getElementById('vfsAccountName').value = '';
+      document.getElementById('vfsEmail').value = '';
+      document.getElementById('vfsPassword').value = '';
+      document.getElementById('vfsGmailUser').value = '';
+      document.getElementById('vfsGmailAppPwd').value = '';
+      document.getElementById('vfsOperatorSelect').value = '';
+      document.getElementById('vfsStatus').value = 'active';
+      document.getElementById('vfsNotes').value = '';
+      document.getElementById('vfsAccountModal').style.display = 'flex';
+      document.getElementById('vfsEmail').focus();
+    }
+
+    function openEditVfsAccountModal(accountId) {
+      const acc = cachedVfsAccounts.find(a => a.id === accountId);
+      if (!acc) return;
+      document.getElementById('vfsModalTitle').textContent = `Edit VFS Account #${acc.id}`;
+      document.getElementById('vfsAccountId').value = acc.id;
+      document.getElementById('vfsAccountName').value = acc.account_name || '';
+      document.getElementById('vfsEmail').value = acc.vfs_email || '';
+      document.getElementById('vfsPassword').value = acc.vfs_password || '';
+      document.getElementById('vfsGmailUser').value = acc.gmail_user || '';
+      document.getElementById('vfsGmailAppPwd').value = acc.gmail_app_password || '';
+      document.getElementById('vfsOperatorSelect').value = acc.operator_id !== null && acc.operator_id !== undefined ? String(acc.operator_id) : '';
+      document.getElementById('vfsStatus').value = acc.status || 'active';
+      document.getElementById('vfsNotes').value = acc.notes || '';
+      document.getElementById('vfsAccountModal').style.display = 'flex';
+    }
+
+    function closeVfsAccountModal() {
+      document.getElementById('vfsAccountModal').style.display = 'none';
+    }
+
+    async function handleSaveVfsAccount(e) {
+      e.preventDefault();
+      const id = document.getElementById('vfsAccountId').value;
+      const payload = {
+        id: id ? parseInt(id) : null,
+        account_name: document.getElementById('vfsAccountName').value.trim(),
+        vfs_email: document.getElementById('vfsEmail').value.trim(),
+        vfs_password: document.getElementById('vfsPassword').value.trim(),
+        gmail_user: document.getElementById('vfsGmailUser').value.trim(),
+        gmail_app_password: document.getElementById('vfsGmailAppPwd').value.trim(),
+        operator_id: document.getElementById('vfsOperatorSelect').value || null,
+        status: document.getElementById('vfsStatus').value,
+        notes: document.getElementById('vfsNotes').value.trim()
+      };
+
+      const btn = document.getElementById('btnSaveVfsAccount');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      try {
+        const url = id ? `/api/admin/vfs_accounts/${id}` : '/api/admin/vfs_accounts';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method: method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ VFS Account saved successfully!');
+          closeVfsAccountModal();
+          fetchVfsAccounts();
+          fetchStats();
+        } else {
+          alert('❌ Error: ' + data.message);
+        }
+      } catch (err) {
+        alert('Network error saving VFS account.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Account';
+      }
+    }
+
+    async function selectVfsAccount(accountId) {
+      try {
+        const res = await fetch('/api/vfs_accounts/select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account_id: accountId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          fetchVfsAccounts();
+        } else {
+          alert(data.message);
+        }
+      } catch (e) {
+        alert('Failed to activate VFS account.');
+      }
+    }
+
+    async function deleteVfsAccount(accountId, email) {
+      if (!confirm(`Are you sure you want to delete VFS account for ${email}?`)) return;
+      try {
+        const res = await fetch(`/api/admin/vfs_accounts/${accountId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          fetchVfsAccounts();
+          fetchStats();
+        } else {
+          alert('Error: ' + data.message);
+        }
+      } catch (e) {
+        alert('Failed to delete VFS account.');
+      }
+    }
+
+    async function testAccountOtp(accountId) {
+      try {
+        const res = await fetch('/api/vfs_accounts/test_otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account_id: accountId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ Gmail OTP Test Succeeded!\n\n' + data.message);
+        } else {
+          alert('❌ Gmail OTP Test Failed:\n\n' + data.message);
+        }
+      } catch (e) {
+        alert('Network error testing Gmail OTP.');
+      }
+    }
+
     // Initial load
     updateAdminISTClock();
     setInterval(updateAdminISTClock, 1000);
     fetchStats();
     fetchUsers();
+    fetchVfsAccounts();
     pollSlotMonitorStatus();
     loadSlotSettings();
     setInterval(pollSlotMonitorStatus, 5000);

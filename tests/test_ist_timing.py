@@ -29,25 +29,27 @@ def test_slot_monitor_status_ist():
         assert "IST" in status["last_check_time"]
 
 def test_pages_have_ist():
-    session = requests.Session()
+    from app import app
+    client = app.test_client()
     # Login
-    session.post("http://127.0.0.1:4140/api/auth/login", json={
+    login_resp = client.post("/api/auth/login", json={
         "username": "operator1",
         "password": "Operator@2026!"
     })
+    assert login_resp.status_code == 200
     
     # 1. Main Operator Dashboard
-    res = session.get("http://127.0.0.1:4140/")
+    res = client.get("/")
     assert res.status_code == 200
-    html = res.text
+    html = res.get_data(as_text=True)
     assert "clockIstTime" in html, "IST clock must be in operator dashboard header"
     assert "IST" in html, "'IST' timezone indicator must appear on dashboard"
     assert "10:00 PM (22:00) IST" in html or "22:00 IST" in html, "Daily summary notice must specify 22:00 IST"
     
     # 2. Slot monitor status API
-    stat_res = session.get("http://127.0.0.1:4140/api/slot_monitor/status")
+    stat_res = client.get("/api/slot_monitor/status")
     assert stat_res.status_code == 200
-    data = stat_res.json()
+    data = stat_res.get_json()
     assert data["success"] is True
 
 def test_db_slot_checks_ist():

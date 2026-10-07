@@ -635,18 +635,32 @@
         </section>
 
         <!-- Credentials Card -->
+        <!-- Credentials Card (Multi-Account VFS & OTP Manager) -->
         <section class="card side-card">
           <div class="side-card-header">
-            <h3 class="side-title">Authentication</h3>
-            <button class="btn-link-edit" onclick="openConfigModal()">Edit</button>
+            <h3 class="side-title">Authentication & VFS Account</h3>
+            <button class="btn-link-edit" onclick="openConfigModal(2)">Manage</button>
+          </div>
+          <div style="margin-bottom:0.75rem;">
+            <label style="font-size:0.75rem; color:#94a3b8; font-weight:600; display:block; margin-bottom:4px;">ACTIVE VFS ACCOUNT</label>
+            <div style="display:flex; gap:0.4rem; align-items:center;">
+              <select id="sideVfsAccountSelect" class="form-control" style="flex:1; padding:0.4rem 0.6rem; font-size:0.8rem; background:#0f172a; border-color:rgba(56,189,248,0.3); color:#38bdf8; font-weight:600;" onchange="switchOperatorActiveVfsAccount(this.value)">
+                <option value="">Loading VFS accounts...</option>
+              </select>
+              <button type="button" class="btn-act" onclick="testSideActiveOtp()" style="padding:0.4rem 0.6rem; font-size:0.75rem; white-space:nowrap;" title="Test Gmail OTP Connection">⚡ OTP</button>
+            </div>
           </div>
           <div class="detail-row">
-            <span class="detail-label">VFS Account</span>
-            <span class="detail-val font-mono">{{ cfg.VFS_EMAIL }}</span>
+            <span class="detail-label">VFS Login</span>
+            <span class="detail-val font-mono" id="sideVfsEmailDisp">{{ cfg.VFS_EMAIL }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Gmail OTP Sync</span>
-            <span class="detail-val text-success">Active (imap.gmail.com:993)</span>
+            <span class="detail-label">Gmail OTP User</span>
+            <span class="detail-val font-mono text-cyan" id="sideGmailUserDisp">{{ cfg.VFS_GMAIL_USER }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">OTP Sync Status</span>
+            <span class="detail-val text-success" id="sideOtpStatus">imap.gmail.com:993 (SSL)</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Browser Display</span>
@@ -822,25 +836,55 @@
 
         <!-- Tab 3: Credentials & Browser -->
         <div class="tab-pane" id="tab-auth">
-          <div class="form-row">
-            <div class="form-group col-6">
-              <label>VFS Account Email*</label>
-              <input type="email" name="VFS_EMAIL" id="cfg_vfs_email" required>
+          <div style="background:rgba(15,23,42,0.6); border:1px solid rgba(56,189,248,0.25); border-radius:10px; padding:1rem; margin-bottom:1.25rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+              <label style="font-size:0.85rem; font-weight:700; color:#38bdf8;">ACTIVE VFS PORTAL ACCOUNT</label>
+              <button type="button" class="btn-act" onclick="openNewModalVfsForm()" style="font-size:0.75rem;">+ Add New Account</button>
             </div>
-            <div class="form-group col-6">
-              <label>VFS Account Password*</label>
-              <input type="password" name="VFS_PASSWORD" id="cfg_vfs_password" required>
-            </div>
+            <select id="modalVfsAccountSelect" class="form-control" style="width:100%; margin-bottom:0.5rem;" onchange="onModalVfsSelectChange(this.value)">
+              <option value="">Loading accounts...</option>
+            </select>
           </div>
 
-          <div class="form-row">
-            <div class="form-group col-6">
-              <label>Gmail User for OTP*</label>
-              <input type="email" name="VFS_GMAIL_USER" id="cfg_gmail_user" required>
+          <div id="modalVfsFormFields">
+            <input type="hidden" id="cfg_vfs_account_id">
+            <div class="form-row">
+              <div class="form-group col-12">
+                <label>Account Label / Friendly Name</label>
+                <input type="text" id="cfg_vfs_account_name" placeholder="e.g. Milan - Bulgaria VFS (or Operator Primary)">
+              </div>
             </div>
-            <div class="form-group col-6">
-              <label>Gmail App Password (16-char)*</label>
-              <input type="password" name="VFS_GMAIL_APP_PASSWORD" id="cfg_gmail_app_pwd" placeholder="xxxx xxxx xxxx xxxx" required>
+            <div class="form-row">
+              <div class="form-group col-6">
+                <label>VFS Account Email*</label>
+                <input type="email" name="VFS_EMAIL" id="cfg_vfs_email" required>
+              </div>
+              <div class="form-group col-6">
+                <label>VFS Account Password*</label>
+                <div style="position:relative;">
+                  <input type="password" name="VFS_PASSWORD" id="cfg_vfs_password" required>
+                  <button type="button" onclick="toggleInputType('cfg_vfs_password')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:#94a3b8; cursor:pointer;" title="Toggle Password">👁️</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group col-6">
+                <label>Gmail User for OTP*</label>
+                <input type="email" name="VFS_GMAIL_USER" id="cfg_gmail_user" required>
+              </div>
+              <div class="form-group col-6">
+                <label>Gmail App Password (16-char)*</label>
+                <div style="position:relative;">
+                  <input type="password" name="VFS_GMAIL_APP_PASSWORD" id="cfg_gmail_app_pwd" placeholder="xxxx xxxx xxxx xxxx" required>
+                  <button type="button" onclick="toggleInputType('cfg_gmail_app_pwd')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:#94a3b8; cursor:pointer;" title="Toggle Password">👁️</button>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-bottom:1.25rem;">
+              <button type="button" class="btn-act" onclick="testModalAccountOtp()">⚡ Test Live Gmail OTP</button>
+              <button type="button" class="btn-act" onclick="saveActiveVfsAccountFromModal()" style="background:rgba(56,189,248,0.2); border-color:#38bdf8; color:#38bdf8;">💾 Save Account to DB</button>
             </div>
           </div>
 
@@ -1241,10 +1285,241 @@
         document.getElementById("labelMode").innerHTML = `<strong>${cfg.HEADLESS ? 'Headless (VPS)' : 'Visible Window'}</strong>`;
         document.getElementById("dispBrowserMode").innerText = cfg.HEADLESS ? "Headless (VPS Mode)" : "Visible Browser";
 
-        // Load saved applicant profiles in background
+        // Load saved applicant profiles & VFS accounts in background
         loadDbProfiles();
+        await loadOperatorVfsAccounts(cfg);
       } catch (e) {
         console.error("Could not load config:", e);
+      }
+    }
+
+    // ==========================================
+    // OPERATOR VFS ACCOUNTS & GMAIL OTP LOGIC
+    // ==========================================
+    let operatorVfsAccountsList = [];
+    let selectedActiveVfsAccountId = null;
+
+    async function loadOperatorVfsAccounts(existingCfg) {
+      try {
+        const res = await fetch("/api/vfs_accounts");
+        const data = await res.json();
+        if (!data.success) return;
+        operatorVfsAccountsList = data.accounts || [];
+        selectedActiveVfsAccountId = data.active_account_id;
+
+        // Populate sidebar select
+        const sideSel = document.getElementById("sideVfsAccountSelect");
+        if (sideSel) {
+          sideSel.innerHTML = "";
+          if (operatorVfsAccountsList.length === 0) {
+            sideSel.innerHTML = '<option value="">No Accounts Found</option>';
+          } else {
+            operatorVfsAccountsList.forEach(a => {
+              const opt = document.createElement("option");
+              opt.value = a.id;
+              const opPrefix = a.operator_username ? `[${a.operator_username}] ` : '[Shared] ';
+              opt.textContent = `${opPrefix}${a.vfs_email} (${a.account_name || 'VFS'})`;
+              if (a.id === selectedActiveVfsAccountId || a.is_active === 1) {
+                opt.selected = true;
+              }
+              sideSel.appendChild(opt);
+            });
+          }
+        }
+
+        // Populate modal select
+        const modalSel = document.getElementById("modalVfsAccountSelect");
+        if (modalSel) {
+          modalSel.innerHTML = "";
+          operatorVfsAccountsList.forEach(a => {
+            const opt = document.createElement("option");
+            opt.value = a.id;
+            const opPrefix = a.operator_username ? `[${a.operator_username}] ` : '[Shared] ';
+            opt.textContent = `${opPrefix}${a.vfs_email} - ${a.account_name || 'VFS'}`;
+            if (a.id === selectedActiveVfsAccountId || a.is_active === 1) {
+              opt.selected = true;
+            }
+            modalSel.appendChild(opt);
+          });
+        }
+
+        // Sync active account fields to sidebar and modal
+        const active = operatorVfsAccountsList.find(a => a.id === selectedActiveVfsAccountId) 
+                    || operatorVfsAccountsList.find(a => a.is_active === 1)
+                    || (operatorVfsAccountsList.length > 0 ? operatorVfsAccountsList[0] : null);
+
+        if (active) {
+          syncActiveVfsAccountDisplay(active);
+        } else if (existingCfg) {
+          const elS = document.getElementById("sideVfsEmailDisp");
+          if (elS) elS.innerText = existingCfg.VFS_EMAIL || "--";
+          const elG = document.getElementById("sideGmailUserDisp");
+          if (elG) elG.innerText = existingCfg.VFS_GMAIL_USER || "--";
+          const setV = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ""; };
+          setV("cfg_vfs_email", existingCfg.VFS_EMAIL);
+          setV("cfg_vfs_password", existingCfg.VFS_PASSWORD);
+          setV("cfg_gmail_user", existingCfg.VFS_GMAIL_USER);
+          setV("cfg_gmail_app_pwd", existingCfg.VFS_GMAIL_APP_PASSWORD);
+        }
+      } catch (e) {
+        console.error("Error loading operator VFS accounts:", e);
+      }
+    }
+
+    function syncActiveVfsAccountDisplay(acc) {
+      if (!acc) return;
+      selectedActiveVfsAccountId = acc.id;
+      const elSideEmail = document.getElementById("sideVfsEmailDisp");
+      if (elSideEmail) elSideEmail.innerText = acc.vfs_email || "--";
+      const elSideGmail = document.getElementById("sideGmailUserDisp");
+      if (elSideGmail) elSideGmail.innerText = acc.gmail_user || "--";
+
+      const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = val || "";
+      };
+      setVal("cfg_vfs_account_id", acc.id);
+      setVal("cfg_vfs_account_name", acc.account_name);
+      setVal("cfg_vfs_email", acc.vfs_email);
+      setVal("cfg_vfs_password", acc.vfs_password);
+      setVal("cfg_gmail_user", acc.gmail_user);
+      setVal("cfg_gmail_app_pwd", acc.gmail_app_password);
+
+      const sideSel = document.getElementById("sideVfsAccountSelect");
+      if (sideSel && sideSel.value !== String(acc.id)) sideSel.value = String(acc.id);
+
+      const modalSel = document.getElementById("modalVfsAccountSelect");
+      if (modalSel && modalSel.value !== String(acc.id)) modalSel.value = String(acc.id);
+    }
+
+    async function switchOperatorActiveVfsAccount(accountId) {
+      if (!accountId) return;
+      try {
+        const res = await fetch("/api/vfs_accounts/select", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ account_id: parseInt(accountId) })
+        });
+        const data = await res.json();
+        if (data.success && data.account) {
+          syncActiveVfsAccountDisplay(data.account);
+          addLogLine(new Date().toLocaleTimeString(), "AUTH", `Switched active VFS account to ${data.account.vfs_email}`);
+        } else {
+          alert(data.message || "Could not switch VFS account.");
+        }
+      } catch (e) {
+        alert("Failed to switch active VFS account.");
+      }
+    }
+
+    function onModalVfsSelectChange(accountId) {
+      const acc = operatorVfsAccountsList.find(a => a.id === parseInt(accountId));
+      if (acc) {
+        syncActiveVfsAccountDisplay(acc);
+      }
+    }
+
+    function openNewModalVfsForm() {
+      const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+      setVal("cfg_vfs_account_id", "");
+      setVal("cfg_vfs_account_name", "");
+      setVal("cfg_vfs_email", "");
+      setVal("cfg_vfs_password", "");
+      setVal("cfg_gmail_user", "");
+      setVal("cfg_gmail_app_pwd", "");
+      const em = document.getElementById("cfg_vfs_email");
+      if (em) em.focus();
+    }
+
+    async function saveActiveVfsAccountFromModal() {
+      const email = document.getElementById("cfg_vfs_email").value.trim();
+      const pwd = document.getElementById("cfg_vfs_password").value.trim();
+      if (!email || !pwd) {
+        alert("Please enter VFS Email and Password.");
+        return;
+      }
+      const accId = document.getElementById("cfg_vfs_account_id").value;
+      const payload = {
+        id: accId ? parseInt(accId) : null,
+        account_name: document.getElementById("cfg_vfs_account_name").value.trim(),
+        vfs_email: email,
+        vfs_password: pwd,
+        gmail_user: document.getElementById("cfg_gmail_user").value.trim(),
+        gmail_app_password: document.getElementById("cfg_gmail_app_pwd").value.trim(),
+        status: "active"
+      };
+
+      try {
+        const res = await fetch("/api/vfs_accounts/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert("✅ VFS Account credentials saved to database!");
+          await loadOperatorVfsAccounts();
+          if (data.account_id) {
+            await switchOperatorActiveVfsAccount(data.account_id);
+          }
+        } else {
+          alert("❌ Error saving: " + data.message);
+        }
+      } catch (e) {
+        alert("Network error saving VFS credentials.");
+      }
+    }
+
+    async function testSideActiveOtp() {
+      if (!selectedActiveVfsAccountId) {
+        alert("Please select a VFS account first.");
+        return;
+      }
+      try {
+        const res = await fetch("/api/vfs_accounts/test_otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ account_id: selectedActiveVfsAccountId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert("✅ Gmail OTP Connection Verified!\n\n" + data.message);
+        } else {
+          alert("❌ Gmail OTP Connection Failed:\n\n" + data.message);
+        }
+      } catch (e) {
+        alert("Network error testing Gmail OTP.");
+      }
+    }
+
+    async function testModalAccountOtp() {
+      const gmailUser = document.getElementById("cfg_gmail_user").value.trim();
+      const gmailPwd = document.getElementById("cfg_gmail_app_pwd").value.trim();
+      if (!gmailUser || !gmailPwd) {
+        alert("Please enter Gmail address and App Password.");
+        return;
+      }
+      try {
+        const res = await fetch("/api/vfs_accounts/test_otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ gmail_user: gmailUser, gmail_app_password: gmailPwd })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert("✅ Live Gmail OTP Test Succeeded!\n\n" + data.message);
+        } else {
+          alert("❌ Gmail OTP Test Failed:\n\n" + data.message);
+        }
+      } catch (e) {
+        alert("Network error testing Gmail OTP.");
+      }
+    }
+
+    function toggleInputType(inputId) {
+      const inp = document.getElementById(inputId);
+      if (inp) {
+        inp.type = (inp.type === "password") ? "text" : "password";
       }
     }
 
@@ -1644,6 +1919,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             applicants: currentApplicants,
+            vfs_account_id: selectedActiveVfsAccountId || undefined,
             TARGET_CITY: activeCity || undefined,
             VISA_CATEGORY: activeCat || undefined,
             VISA_SUB_CATEGORY: activeSubCat || undefined

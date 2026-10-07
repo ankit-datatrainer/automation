@@ -177,10 +177,16 @@ def run_worker(overrides: Optional[dict] = None):
         if overrides:
             if "applicants" in overrides and isinstance(overrides["applicants"], list):
                 cfg.save_applicants(overrides.pop("applicants"))
+            if "vfs_account_id" in overrides:
+                try:
+                    vfs_db.select_active_vfs_account(int(overrides.pop("vfs_account_id")))
+                except Exception:
+                    pass
             if overrides:
                 cfg.update_config(overrides)
 
         push_log("INIT", f"Starting VFS Bulgaria appointment automation workflow for {len(cfg.APPLICANTS_LIST)} applicant(s)...")
+        push_log("AUTH", f"Active VFS Portal Login: {cfg.VFS_EMAIL} | Gmail OTP: {cfg.VFS_GMAIL_USER}")
         active_automation = VFSAutomation(config=cfg, log_cb=push_log)
         active_automation.run()
     except Exception as e:
@@ -697,6 +703,7 @@ def handle_config():
             "applicants": cfg.APPLICANTS_LIST
         })
     
+    active_acc = vfs_db.get_active_vfs_account(operator_id=None if user_role == "super_admin" else session.get("user_id"))
     cfg_data = {
         "VFS_EMAIL": cfg.VFS_EMAIL,
         "VFS_PASSWORD": cfg.VFS_PASSWORD,
@@ -707,7 +714,8 @@ def handle_config():
         "VISA_SUB_CATEGORY": cfg.VISA_SUB_CATEGORY,
         "BROWSER_CHANNEL": cfg.BROWSER_CHANNEL,
         "HEADLESS": cfg.HEADLESS,
-        "applicants": cfg.APPLICANTS_LIST
+        "applicants": cfg.APPLICANTS_LIST,
+        "active_vfs_account": active_acc
     }
     # Raw database details are only exposed to Super Admin
     if user_role == "super_admin":
@@ -843,6 +851,140 @@ def db_history():
     return jsonify({"success": True, "history": history})
 
 
+
+# =============================================================================
+# VFS ACCOUNTS & GMAIL OTP APIS (Multi-Operator Management)
+# =============================================================================
+
+@app.route("/api/vfs_accounts", methods=["GET"])
+@login_required
+def api_get_vfs_accounts():
+    user_id = session.get("user_id")
+    role = session.get("role", "user")
+    accounts = vfs_db.get_all_vfs_accounts(operator_id=None if role == "super_admin" else user_id)
+    active_acc = vfs_db.get_active_vfs_account(operator_id=None if role == "super_admin" else user_id)
+    return jsonify({
+        "success": True,
+        "accounts": accounts,
+        "active_account_id": active_acc["id"] if active_acc else None,
+        "active_account": active_acc
+    })
+
+
+@app.route("/api/vfs_accounts/select", methods=["POST"])
+@login_required
+def api_select_vfs_account():
+    data = request.get_json(force=True, silent=True) or {}
+    account_id = data.get("account_id")
+    if not account_id:
+        return jsonify({"success": False, "message": "account_id is required."}), 400
+    try:
+        account_id = int(account_id)
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "Invalid account_id."}), 400
+
+    user_id = session.get("user_id")
+    role = session.get("role", "user")
+    selected = vfs_db.select_active_vfs_account(account_id, operator_id=None if role == "super_admin" else user_id)
+    if selected:
+        label = selected.get("account_name") or f"Account #{account_id}"
+        push_log("AUTH", f"Switched active VFS Account to '{selected['vfs_email']}' ({label}).")
+        return jsonify({
+            "success": True,
+            "message": f"Active account switched to {selected['vfs_email']}.",
+            "account": selected
+        })
+    return jsonify({"success": False, "message": "Failed to activate account or access denied."}), 400
+
+
+@app.route("/api/vfs_accounts/save", methods=["POST"])
+@login_required
+def api_save_vfs_account():
+    data = request.get_json(force=True, silent=True) or {}
+    user_id = session.get("user_id")
+    role = session.get("role", "user")
+    is_admin = (role == "super_admin")
+    ok, msg, acc_id = vfs_db.save_vfs_account(data, current_user_id=user_id, is_admin=is_admin)
+    if ok:
+        push_log("CONFIG", f"Saved VFS Account credentials for '{data.get('vfs_email')}'.")
+        return jsonify({"success": True, "message": msg, "account_id": acc_id})
+    return jsonify({"success": False, "message": msg}), 400
+
+
+@app.route("/api/vfs_accounts/<int:account_id>", methods=["DELETE"])
+@login_required
+def api_delete_vfs_account(account_id):
+    user_id = session.get("user_id")
+    role = session.get("role", "user")
+    is_admin = (role == "super_admin")
+    ok, msg = vfs_db.delete_vfs_account(account_id, current_user_id=user_id, is_admin=is_admin)
+    if ok:
+        push_log("CONFIG", f"Deleted VFS Account #{account_id}.")
+        return jsonify({"success": True, "message": msg})
+    return jsonify({"success": False, "message": msg}), 400
+
+
+@app.route("/api/vfs_accounts/test_otp", methods=["POST"])
+@login_required
+def api_test_vfs_otp():
+    data = request.get_json(force=True, silent=True) or {}
+    gmail_user = data.get("gmail_user")
+    gmail_app_pwd = data.get("gmail_app_password")
+
+    if data.get("account_id"):
+        acc = vfs_db.get_vfs_account_by_id(int(data["account_id"]))
+        if acc:
+            gmail_user = acc.get("gmail_user")
+            gmail_app_pwd = acc.get("gmail_app_password")
+
+    if not gmail_user or not gmail_app_pwd:
+        return jsonify({"success": False, "message": "Gmail user and 16-character App Password are required."}), 400
+
+    ok, msg = vfs_db.test_gmail_imap_credentials(gmail_user, gmail_app_pwd)
+    return jsonify({"success": ok, "message": msg})
+
+
+@app.route("/api/admin/vfs_accounts", methods=["GET", "POST"])
+@super_admin_required
+def admin_vfs_accounts():
+    if request.method == "POST":
+        data = request.get_json(force=True, silent=True) or {}
+        ok, msg, acc_id = vfs_db.save_vfs_account(data, is_admin=True)
+        if ok:
+            push_log("ADMIN", f"Super Admin saved VFS account '{data.get('vfs_email')}'.")
+            return jsonify({"success": True, "message": msg, "account_id": acc_id})
+        return jsonify({"success": False, "message": msg}), 400
+
+    accounts = vfs_db.get_all_vfs_accounts()
+    users = vfs_db.get_all_users()
+    active_acc = vfs_db.get_active_vfs_account()
+    return jsonify({
+        "success": True,
+        "accounts": accounts,
+        "users": [{"id": u["id"], "username": u["username"], "full_name": u["full_name"]} for u in users],
+        "active_account_id": active_acc["id"] if active_acc else None
+    })
+
+
+@app.route("/api/admin/vfs_accounts/<int:account_id>", methods=["PUT", "DELETE"])
+@super_admin_required
+def admin_vfs_account_detail(account_id):
+    if request.method == "DELETE":
+        ok, msg = vfs_db.delete_vfs_account(account_id, is_admin=True)
+        if ok:
+            push_log("ADMIN", f"Super Admin deleted VFS account #{account_id}.")
+            return jsonify({"success": True, "message": msg})
+        return jsonify({"success": False, "message": msg}), 400
+
+    data = request.get_json(force=True, silent=True) or {}
+    data["id"] = account_id
+    ok, msg, acc_id = vfs_db.save_vfs_account(data, is_admin=True)
+    if ok:
+        push_log("ADMIN", f"Super Admin updated VFS account #{account_id}.")
+        return jsonify({"success": True, "message": msg, "account_id": acc_id})
+    return jsonify({"success": False, "message": msg}), 400
+
+
 @app.route("/api/start", methods=["POST"])
 @login_required
 def start_automation():
@@ -851,6 +993,18 @@ def start_automation():
         return jsonify({"success": False, "message": "Automation is already running."}), 400
 
     data = request.get_json(force=True, silent=True) or {}
+
+    # Switch active VFS account if requested
+    if data.get("vfs_account_id"):
+        try:
+            user_id = session.get("user_id")
+            role = session.get("role", "user")
+            vfs_db.select_active_vfs_account(
+                int(data["vfs_account_id"]),
+                operator_id=None if role == "super_admin" else user_id
+            )
+        except Exception:
+            pass
 
     state["status"] = "RUNNING"
     state["current_step"] = "STARTING"

@@ -190,16 +190,25 @@ def init_sqlite_db():
         cur.execute("""
             CREATE TABLE IF NOT EXISTS vfs_accounts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_name TEXT,
                 vfs_email TEXT UNIQUE NOT NULL,
                 vfs_password TEXT NOT NULL,
                 gmail_user TEXT,
                 gmail_app_password TEXT,
+                operator_id INTEGER,
                 status TEXT DEFAULT 'active',
+                is_active INTEGER DEFAULT 0,
                 notes TEXT,
                 last_used_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        # Safe migration for existing SQLite vfs_accounts
+        for _col, _type in [("account_name", "TEXT"), ("operator_id", "INTEGER"), ("is_active", "INTEGER DEFAULT 0")]:
+            try:
+                cur.execute(f"ALTER TABLE vfs_accounts ADD COLUMN {_col} {_type};")
+            except Exception:
+                pass
         cur.execute("""
             CREATE TABLE IF NOT EXISTS booking_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -465,16 +474,33 @@ def init_db() -> bool:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS vfs_accounts (
                     id INT AUTO_INCREMENT PRIMARY KEY,
+                    account_name VARCHAR(100) NULL,
                     vfs_email VARCHAR(150) UNIQUE NOT NULL,
                     vfs_password VARCHAR(100) NOT NULL,
-                    gmail_user VARCHAR(150),
-                    gmail_app_password VARCHAR(100),
+                    gmail_user VARCHAR(150) NULL,
+                    gmail_app_password VARCHAR(100) NULL,
+                    operator_id INT NULL,
                     status VARCHAR(50) DEFAULT 'active',
-                    notes TEXT,
+                    is_active TINYINT(1) DEFAULT 0,
+                    notes TEXT NULL,
                     last_used_at TIMESTAMP NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    KEY idx_vfs_operator (operator_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
+
+            # Column migrations for existing vfs_accounts table
+            for _col, _definition in [
+                ("account_name", "VARCHAR(100) NULL AFTER id"),
+                ("operator_id", "INT NULL AFTER gmail_app_password"),
+                ("is_active", "TINYINT(1) DEFAULT 0 AFTER status"),
+            ]:
+                try:
+                    cur.execute(f"SHOW COLUMNS FROM vfs_accounts LIKE '{_col}'")
+                    if not cur.fetchone():
+                        cur.execute(f"ALTER TABLE vfs_accounts ADD COLUMN {_col} {_definition}")
+                except Exception as _e:
+                    log.warning(f"Could not add column {_col} to vfs_accounts: {_e}")
 
             # 4. Booking History Table
             cur.execute("""
@@ -639,12 +665,23 @@ def init_db() -> bool:
             # Sync default VFS account if vfs_accounts table is empty
             cur.execute("SELECT COUNT(*) AS cnt FROM vfs_accounts")
             acc_res = cur.fetchone()
-            if acc_res and acc_res["cnt"] == 0 and cfg.VFS_EMAIL:
+            if acc_res and acc_res["cnt"] == 0:
                 cur.execute("""
-                    INSERT INTO vfs_accounts (vfs_email, vfs_password, gmail_user, gmail_app_password, status)
-                    VALUES (%s, %s, %s, %s, 'active')
-                    ON DUPLICATE KEY UPDATE vfs_password=VALUES(vfs_password)
-                """, (cfg.VFS_EMAIL, cfg.VFS_PASSWORD, cfg.VFS_GMAIL_USER, cfg.VFS_GMAIL_APP_PASSWORD))
+                    INSERT INTO vfs_accounts (account_name, vfs_email, vfs_password, gmail_user, gmail_app_password, status, is_active)
+                    VALUES (%s, %s, %s, %s, %s, 'active', 1)
+                """, ("Milan - Bulgaria VFS", "oli930110@gmail.com", "Milan@123", "ankit.developer2004@gmail.com", "dbfq cwtw nfwm ouuk"))
+            else:
+                # Ensure at least one account is marked is_active = 1
+                cur.execute("SELECT id FROM vfs_accounts WHERE is_active = 1 LIMIT 1")
+                act_row = cur.fetchone()
+                if not act_row:
+                    cur.execute("UPDATE vfs_accounts SET is_active = 1 WHERE vfs_email = 'oli930110@gmail.com'")
+                    cur.execute("SELECT id FROM vfs_accounts WHERE is_active = 1 LIMIT 1")
+                    if not cur.fetchone():
+                        cur.execute("UPDATE vfs_accounts SET is_active = 1 WHERE status = 'active' ORDER BY id ASC LIMIT 1")
+                    cur.execute("SELECT id FROM vfs_accounts WHERE is_active = 1 LIMIT 1")
+                    if not cur.fetchone():
+                        cur.execute("UPDATE vfs_accounts SET is_active = 1 ORDER BY id ASC LIMIT 1")
 
         conn.close()
         log.info("Database initialized successfully with all tables and seeded users.")
@@ -1035,6 +1072,284 @@ def get_booking_history(limit: int = 50) -> List[Dict[str, Any]]:
     except Exception as e:
         log.warning(f"Error fetching booking history: {e}")
         return []
+
+
+# =============================================================================
+# VFS ACCOUNTS & GMAIL OTP MANAGEMENT (Super Admin & Operators)
+# =============================================================================
+
+def get_all_vfs_accounts(operator_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Retrieve VFS accounts. If operator_id is specified, returns assigned + shared accounts."""
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            if operator_id is not None:
+                cur.execute("""
+                    SELECT a.*, u.username AS operator_username, u.full_name AS operator_name
+                    FROM vfs_accounts a
+                    LEFT JOIN users u ON a.operator_id = u.id
+                    WHERE a.operator_id = %s OR a.operator_id IS NULL
+                    ORDER BY a.is_active DESC, a.id ASC
+                """, (operator_id,))
+            else:
+                cur.execute("""
+                    SELECT a.*, u.username AS operator_username, u.full_name AS operator_name
+                    FROM vfs_accounts a
+                    LEFT JOIN users u ON a.operator_id = u.id
+                    ORDER BY a.is_active DESC, a.id ASC
+                """)
+            rows = cur.fetchall()
+        conn.close()
+        return rows
+    except Exception as e:
+        log.warning(f"Error fetching VFS accounts: {e}")
+        return []
+
+
+def get_vfs_account_by_id(account_id: int) -> Optional[Dict[str, Any]]:
+    """Fetch a single VFS account by ID with operator metadata."""
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT a.*, u.username AS operator_username, u.full_name AS operator_name
+                FROM vfs_accounts a
+                LEFT JOIN users u ON a.operator_id = u.id
+                WHERE a.id = %s
+            """, (account_id,))
+            row = cur.fetchone()
+        conn.close()
+        return row
+    except Exception as e:
+        log.warning(f"Error fetching VFS account #{account_id}: {e}")
+        return None
+
+
+def get_active_vfs_account(operator_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    """Retrieve currently active VFS account for automation runs."""
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            row = None
+            if operator_id is not None:
+                cur.execute("""
+                    SELECT a.*, u.username AS operator_username, u.full_name AS operator_name
+                    FROM vfs_accounts a
+                    LEFT JOIN users u ON a.operator_id = u.id
+                    WHERE (a.operator_id = %s OR a.operator_id IS NULL) AND a.is_active = 1 AND a.status = 'active'
+                    LIMIT 1
+                """, (operator_id,))
+                row = cur.fetchone()
+            if not row:
+                cur.execute("""
+                    SELECT a.*, u.username AS operator_username, u.full_name AS operator_name
+                    FROM vfs_accounts a
+                    LEFT JOIN users u ON a.operator_id = u.id
+                    WHERE a.is_active = 1 AND a.status = 'active'
+                    LIMIT 1
+                """)
+                row = cur.fetchone()
+            if not row:
+                cur.execute("""
+                    SELECT a.*, u.username AS operator_username, u.full_name AS operator_name
+                    FROM vfs_accounts a
+                    LEFT JOIN users u ON a.operator_id = u.id
+                    WHERE a.status = 'active'
+                    ORDER BY a.id ASC LIMIT 1
+                """)
+                row = cur.fetchone()
+            if not row:
+                cur.execute("""
+                    SELECT a.*, u.username AS operator_username, u.full_name AS operator_name
+                    FROM vfs_accounts a
+                    LEFT JOIN users u ON a.operator_id = u.id
+                    ORDER BY a.id ASC LIMIT 1
+                """)
+                row = cur.fetchone()
+        conn.close()
+        return row
+    except Exception as e:
+        log.warning(f"Error fetching active VFS account: {e}")
+        return None
+
+
+def select_active_vfs_account(account_id: int, operator_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    """Mark an account as the system/operator active account for automation."""
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            if operator_id is not None:
+                cur.execute(
+                    "SELECT id FROM vfs_accounts WHERE id = %s AND (operator_id = %s OR operator_id IS NULL)",
+                    (account_id, operator_id)
+                )
+                if not cur.fetchone():
+                    conn.close()
+                    return None
+            cur.execute("UPDATE vfs_accounts SET is_active = 0")
+            if getattr(conn, "is_sqlite", False):
+                cur.execute("UPDATE vfs_accounts SET is_active = 1, last_used_at = CURRENT_TIMESTAMP WHERE id = ?", (account_id,))
+            else:
+                cur.execute("UPDATE vfs_accounts SET is_active = 1, last_used_at = NOW() WHERE id = %s", (account_id,))
+            cur.execute("""
+                SELECT a.*, u.username AS operator_username, u.full_name AS operator_name
+                FROM vfs_accounts a
+                LEFT JOIN users u ON a.operator_id = u.id
+                WHERE a.id = %s
+            """, (account_id,))
+            account = cur.fetchone()
+        conn.close()
+
+        if account:
+            from config import cfg
+            cfg.VFS_EMAIL = account.get("vfs_email") or ""
+            cfg.VFS_PASSWORD = account.get("vfs_password") or ""
+            cfg.VFS_GMAIL_USER = account.get("gmail_user") or ""
+            cfg.VFS_GMAIL_APP_PASSWORD = account.get("gmail_app_password") or ""
+        return account
+    except Exception as e:
+        log.error(f"Error selecting active VFS account #{account_id}: {e}")
+        return None
+
+
+def save_vfs_account(
+    account_data: dict,
+    current_user_id: Optional[int] = None,
+    is_admin: bool = False
+) -> Tuple[bool, str, Optional[int]]:
+    """Create or update a VFS account in the database."""
+    vfs_email = str(account_data.get("vfs_email", "")).strip().lower()
+    vfs_password = str(account_data.get("vfs_password", "")).strip()
+    gmail_user = str(account_data.get("gmail_user", "")).strip().lower()
+    gmail_app_password = str(account_data.get("gmail_app_password", "")).strip()
+    account_name = str(account_data.get("account_name", "")).strip() or vfs_email
+    status = str(account_data.get("status", "active")).strip().lower() or "active"
+    notes = str(account_data.get("notes", "")).strip()
+
+    raw_op = account_data.get("operator_id")
+    if raw_op in ("", None, "null", "None"):
+        operator_id = None
+    else:
+        try:
+            operator_id = int(raw_op)
+        except (ValueError, TypeError):
+            operator_id = None
+
+    if not is_admin and current_user_id is not None:
+        operator_id = current_user_id
+
+    if not vfs_email:
+        return False, "VFS email address is required.", None
+    if not vfs_password:
+        return False, "VFS password is required.", None
+
+    account_id = account_data.get("id")
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            if account_id:
+                if not is_admin and current_user_id is not None:
+                    cur.execute("SELECT operator_id FROM vfs_accounts WHERE id = %s", (account_id,))
+                    existing = cur.fetchone()
+                    if existing and existing.get("operator_id") not in (None, current_user_id):
+                        conn.close()
+                        return False, "You do not have permission to modify this account.", None
+
+                cur.execute("""
+                    UPDATE vfs_accounts 
+                    SET account_name = %s, vfs_email = %s, vfs_password = %s,
+                        gmail_user = %s, gmail_app_password = %s, operator_id = %s,
+                        status = %s, notes = %s
+                    WHERE id = %s
+                """, (
+                    account_name, vfs_email, vfs_password,
+                    gmail_user, gmail_app_password, operator_id,
+                    status, notes, account_id
+                ))
+                ret_id = int(account_id)
+            else:
+                cur.execute("""
+                    INSERT INTO vfs_accounts 
+                    (account_name, vfs_email, vfs_password, gmail_user, gmail_app_password, operator_id, status, is_active, notes)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, 0, %s)
+                    ON DUPLICATE KEY UPDATE
+                        account_name = VALUES(account_name),
+                        vfs_password = VALUES(vfs_password),
+                        gmail_user = VALUES(gmail_user),
+                        gmail_app_password = VALUES(gmail_app_password),
+                        operator_id = VALUES(operator_id),
+                        status = VALUES(status),
+                        notes = VALUES(notes)
+                """, (
+                    account_name, vfs_email, vfs_password,
+                    gmail_user, gmail_app_password, operator_id,
+                    status, notes
+                ))
+                ret_id = getattr(cur, "lastrowid", None) or 1
+
+            # Ensure at least one account is marked active
+            cur.execute("SELECT COUNT(*) AS cnt FROM vfs_accounts WHERE is_active = 1")
+            act_cnt = cur.fetchone()["cnt"]
+            if act_cnt == 0:
+                cur.execute("UPDATE vfs_accounts SET is_active = 1 WHERE id = %s", (ret_id,))
+
+        conn.close()
+        return True, "VFS account saved successfully.", ret_id
+    except Exception as e:
+        log.error(f"Error saving VFS account: {e}")
+        return False, str(e), None
+
+
+def delete_vfs_account(
+    account_id: int,
+    current_user_id: Optional[int] = None,
+    is_admin: bool = False
+) -> Tuple[bool, str]:
+    """Delete a VFS account by ID with access control."""
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM vfs_accounts WHERE id = %s", (account_id,))
+            acc = cur.fetchone()
+            if not acc:
+                conn.close()
+                return False, "VFS account not found."
+            if not is_admin and current_user_id is not None and acc.get("operator_id") != current_user_id:
+                conn.close()
+                return False, "You do not have permission to delete this account."
+
+            was_active = acc.get("is_active", 0) == 1
+            cur.execute("DELETE FROM vfs_accounts WHERE id = %s", (account_id,))
+
+            if was_active:
+                cur.execute("UPDATE vfs_accounts SET is_active = 1 WHERE status = 'active' ORDER BY id ASC LIMIT 1")
+        conn.close()
+        return True, "VFS account deleted successfully."
+    except Exception as e:
+        log.error(f"Error deleting VFS account #{account_id}: {e}")
+        return False, str(e)
+
+
+def test_gmail_imap_credentials(gmail_user: str, gmail_app_password: str) -> Tuple[bool, str]:
+    """Test connection and authentication to Gmail IMAP server using user and app password."""
+    import imaplib
+    user = (gmail_user or "").strip()
+    pwd = (gmail_app_password or "").strip().replace(" ", "")
+    if not user or not pwd:
+        return False, "Gmail address and 16-character App Password are required."
+    try:
+        mail = imaplib.IMAP4_SSL("imap.gmail.com", 993, timeout=12)
+        mail.login(user, pwd)
+        status, messages = mail.select("INBOX", readonly=True)
+        count = 0
+        if status == "OK" and messages and messages[0]:
+            count = int(messages[0].decode() if isinstance(messages[0], bytes) else messages[0])
+        mail.logout()
+        return True, f"Gmail IMAP connection verified! INBOX has {count:,} messages ready for OTP retrieval."
+    except imaplib.IMAP4.error as ex:
+        return False, f"IMAP authentication failed: Invalid credentials or App Password rejected by Gmail ({ex})."
+    except Exception as ex:
+        return False, f"IMAP connection failed: {ex}"
 
 
 # =============================================================================

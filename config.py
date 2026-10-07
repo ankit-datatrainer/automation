@@ -12,13 +12,79 @@ load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 
 class Config:
-    # VFS Account
-    VFS_EMAIL: str = os.getenv("VFS_EMAIL", "oli930110@gmail.com")
-    VFS_PASSWORD: str = os.getenv("VFS_PASSWORD", "Milan@123")
+    # Dynamic VFS Portal Credentials (Stored securely in Database, NOT in .env)
+    _vfs_email: str | None = None
+    _vfs_password: str | None = None
+    _vfs_gmail_user: str | None = None
+    _vfs_gmail_app_password: str | None = None
 
-    # Gmail OTP Retrieval
-    VFS_GMAIL_USER: str = os.getenv("VFS_GMAIL_USER", "ankit.developer2004@gmail.com")
-    VFS_GMAIL_APP_PASSWORD: str = os.getenv("VFS_GMAIL_APP_PASSWORD", "dbfq cwtw nfwm ouuk")
+    @property
+    def VFS_EMAIL(self) -> str:
+        if self._vfs_email:
+            return self._vfs_email
+        try:
+            import vfs_db
+            acc = vfs_db.get_active_vfs_account()
+            if acc and acc.get("vfs_email"):
+                return acc["vfs_email"]
+        except Exception:
+            pass
+        return os.getenv("VFS_EMAIL", "oli930110@gmail.com")
+
+    @VFS_EMAIL.setter
+    def VFS_EMAIL(self, val: str):
+        self._vfs_email = str(val).strip()
+
+    @property
+    def VFS_PASSWORD(self) -> str:
+        if self._vfs_password:
+            return self._vfs_password
+        try:
+            import vfs_db
+            acc = vfs_db.get_active_vfs_account()
+            if acc and acc.get("vfs_password"):
+                return acc["vfs_password"]
+        except Exception:
+            pass
+        return os.getenv("VFS_PASSWORD", "Milan@123")
+
+    @VFS_PASSWORD.setter
+    def VFS_PASSWORD(self, val: str):
+        self._vfs_password = str(val).strip()
+
+    @property
+    def VFS_GMAIL_USER(self) -> str:
+        if self._vfs_gmail_user:
+            return self._vfs_gmail_user
+        try:
+            import vfs_db
+            acc = vfs_db.get_active_vfs_account()
+            if acc and acc.get("gmail_user"):
+                return acc["gmail_user"]
+        except Exception:
+            pass
+        return os.getenv("VFS_GMAIL_USER", "ankit.developer2004@gmail.com")
+
+    @VFS_GMAIL_USER.setter
+    def VFS_GMAIL_USER(self, val: str):
+        self._vfs_gmail_user = str(val).strip()
+
+    @property
+    def VFS_GMAIL_APP_PASSWORD(self) -> str:
+        if self._vfs_gmail_app_password:
+            return self._vfs_gmail_app_password
+        try:
+            import vfs_db
+            acc = vfs_db.get_active_vfs_account()
+            if acc and acc.get("gmail_app_password"):
+                return acc["gmail_app_password"]
+        except Exception:
+            pass
+        return os.getenv("VFS_GMAIL_APP_PASSWORD", "dbfq cwtw nfwm ouuk")
+
+    @VFS_GMAIL_APP_PASSWORD.setter
+    def VFS_GMAIL_APP_PASSWORD(self, val: str):
+        self._vfs_gmail_app_password = str(val).strip()
 
     # Target Route
     TARGET_CITY: str = os.getenv("TARGET_CITY", "delhi").lower()
@@ -144,8 +210,49 @@ class Config:
         return self.load_applicants()
 
 
+    SENSITIVE_CREDENTIAL_KEYS = {
+        "VFS_EMAIL", "VFS_PASSWORD", "VFS_GMAIL_USER", "VFS_GMAIL_APP_PASSWORD"
+    }
+
     def update_config(self, updates: dict):
-        """Update in-memory config and persist changes to .env file."""
+        """Update in-memory config and persist non-credential settings to .env file."""
+        db_account_updates = {}
+        for k, val in updates.items():
+            if k in self.SENSITIVE_CREDENTIAL_KEYS:
+                setattr(self, k, str(val))
+                if k == "VFS_EMAIL":
+                    db_account_updates["vfs_email"] = str(val)
+                elif k == "VFS_PASSWORD":
+                    db_account_updates["vfs_password"] = str(val)
+                elif k == "VFS_GMAIL_USER":
+                    db_account_updates["gmail_user"] = str(val)
+                elif k == "VFS_GMAIL_APP_PASSWORD":
+                    db_account_updates["gmail_app_password"] = str(val)
+            elif hasattr(self, k):
+                orig_type = type(getattr(self, k))
+                if orig_type == bool:
+                    setattr(self, k, str(val).lower() in ("true", "1", "yes"))
+                elif orig_type == int:
+                    setattr(self, k, int(val))
+                else:
+                    setattr(self, k, val)
+
+        # Synchronize credentials to active database VFS account if changed
+        if db_account_updates:
+            try:
+                import vfs_db
+                active_acc = vfs_db.get_active_vfs_account()
+                if active_acc:
+                    db_account_updates["id"] = active_acc["id"]
+                    db_account_updates.setdefault("account_name", active_acc.get("account_name"))
+                    db_account_updates.setdefault("vfs_email", active_acc.get("vfs_email"))
+                    db_account_updates.setdefault("vfs_password", active_acc.get("vfs_password"))
+                    db_account_updates.setdefault("gmail_user", active_acc.get("gmail_user"))
+                    db_account_updates.setdefault("gmail_app_password", active_acc.get("gmail_app_password"))
+                    vfs_db.save_vfs_account(db_account_updates, is_admin=True)
+            except Exception:
+                pass
+
         lines = []
         if ENV_PATH.exists():
             lines = ENV_PATH.read_text(encoding="utf-8").splitlines()
@@ -157,35 +264,23 @@ class Config:
             if stripped and not stripped.startswith("#") and "=" in stripped:
                 k, _ = stripped.split("=", 1)
                 k = k.strip()
+                # Never write sensitive credentials to .env
+                if k in self.SENSITIVE_CREDENTIAL_KEYS:
+                    continue
                 existing_keys.add(k)
                 if k in updates:
                     val = str(updates[k])
                     new_lines.append(f"{k}={val}")
-                    if hasattr(self, k):
-                        orig_type = type(getattr(self, k))
-                        if orig_type == bool:
-                            setattr(self, k, val.lower() in ("true", "1", "yes"))
-                        elif orig_type == int:
-                            setattr(self, k, int(val))
-                        else:
-                            setattr(self, k, val)
                 else:
                     new_lines.append(line)
             else:
+                # Omit commented credential section headers if desirable
                 new_lines.append(line)
 
         for k, v in updates.items():
-            if k not in existing_keys:
+            if k not in existing_keys and k not in self.SENSITIVE_CREDENTIAL_KEYS:
                 val = str(v)
                 new_lines.append(f"{k}={val}")
-                if hasattr(self, k):
-                    orig_type = type(getattr(self, k))
-                    if orig_type == bool:
-                        setattr(self, k, val.lower() in ("true", "1", "yes"))
-                    elif orig_type == int:
-                        setattr(self, k, int(val))
-                    else:
-                        setattr(self, k, val)
 
         ENV_PATH.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
         load_dotenv(dotenv_path=ENV_PATH, override=True)
