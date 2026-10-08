@@ -34,7 +34,7 @@ def test_pages_have_ist():
     # Login
     login_resp = client.post("/api/auth/login", json={
         "username": "operator1",
-        "password": "Operator@2026!"
+        "password": "Dev@2026"
     })
     assert login_resp.status_code == 200
     

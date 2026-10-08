@@ -189,3 +189,31 @@ def fetch_latest_otp(
 
     report("Timed out waiting for OTP from Gmail.")
     return None
+
+
+def test_imap_connection(
+    user: str,
+    app_password: str,
+    host: str = "imap.gmail.com",
+    port: int = 993,
+    timeout: int = 12
+) -> Tuple[bool, str]:
+    """Test IMAP SSL connection and authentication for Gmail or Hostinger."""
+    if not user or not app_password:
+        return False, "Email and App Password / Password are required."
+    clean_pw = app_password.replace(" ", "")
+    try:
+        mail = imaplib.IMAP4_SSL(host, port, timeout=timeout)
+        mail.login(user.strip(), clean_pw)
+        res, data = mail.select("INBOX", readonly=True)
+        count = 0
+        if res == "OK" and data and data[0]:
+            count = int(data[0].decode() if isinstance(data[0], bytes) else data[0])
+        try:
+            mail.logout()
+        except Exception:
+            pass
+        return True, f"Connected to {host}:{port}. Inbox verified ({count} messages found)."
+    except Exception as e:
+        return False, f"IMAP connection to {host}:{port} failed: {str(e)}"
+

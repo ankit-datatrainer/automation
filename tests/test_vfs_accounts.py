@@ -35,7 +35,7 @@ def test_operator_vfs_accounts_api(client):
     # Login as operator1
     login_res = client.post("/api/auth/login", json={
         "username": "operator1",
-        "password": "Operator@2026!"
+        "password": "Dev@2026"
     })
     assert login_res.status_code == 200
 

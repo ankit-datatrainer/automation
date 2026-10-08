@@ -639,7 +639,7 @@
         <section class="card side-card">
           <div class="side-card-header">
             <h3 class="side-title">Authentication & VFS Account</h3>
-            <button class="btn-link-edit" onclick="openConfigModal(2)">Manage</button>
+            <button class="btn-link-edit" onclick="openConfigModal('tab-auth')">Manage</button>
           </div>
           <div style="margin-bottom:0.75rem;">
             <label style="font-size:0.75rem; color:#94a3b8; font-weight:600; display:block; margin-bottom:4px;">ACTIVE VFS ACCOUNT</label>
@@ -647,20 +647,28 @@
               <select id="sideVfsAccountSelect" class="form-control" style="flex:1; padding:0.4rem 0.6rem; font-size:0.8rem; background:#0f172a; border-color:rgba(56,189,248,0.3); color:#38bdf8; font-weight:600;" onchange="switchOperatorActiveVfsAccount(this.value)">
                 <option value="">Loading VFS accounts...</option>
               </select>
-              <button type="button" class="btn-act" onclick="testSideActiveOtp()" style="padding:0.4rem 0.6rem; font-size:0.75rem; white-space:nowrap;" title="Test Gmail OTP Connection">⚡ OTP</button>
+              <button type="button" class="btn-act" onclick="testIndexUserImap()" style="padding:0.4rem 0.6rem; font-size:0.75rem; white-space:nowrap;" title="Test OTP Connection">⚡ OTP</button>
             </div>
           </div>
           <div class="detail-row">
-            <span class="detail-label">VFS Login</span>
+            <span class="detail-label">Primary VFS</span>
             <span class="detail-val font-mono" id="sideVfsEmailDisp">{{ cfg.VFS_EMAIL }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Gmail OTP User</span>
-            <span class="detail-val font-mono text-cyan" id="sideGmailUserDisp">{{ cfg.VFS_GMAIL_USER }}</span>
+            <span class="detail-label">Secondary VFS</span>
+            <span class="detail-val font-mono text-cyan" id="sideVfsEmailSecDisp">--</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">OTP Sync Status</span>
-            <span class="detail-val text-success" id="sideOtpStatus">imap.gmail.com:993 (SSL)</span>
+            <span class="detail-label">OTP Mailbox</span>
+            <span class="detail-val font-mono" id="sideGmailUserDisp">{{ cfg.VFS_GMAIL_USER }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Mail Provider</span>
+            <span class="detail-val text-success" id="sideOtpStatus">Gmail (imap.gmail.com:993)</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Telegram Chat</span>
+            <span class="detail-val font-mono" id="sideTelegramChatDisp">--</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Browser Display</span>
@@ -836,58 +844,120 @@
 
         <!-- Tab 3: Credentials & Browser -->
         <div class="tab-pane" id="tab-auth">
-          <div style="background:rgba(15,23,42,0.6); border:1px solid rgba(56,189,248,0.25); border-radius:10px; padding:1rem; margin-bottom:1.25rem;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
-              <label style="font-size:0.85rem; font-weight:700; color:#38bdf8;">ACTIVE VFS PORTAL ACCOUNT</label>
-              <button type="button" class="btn-act" onclick="openNewModalVfsForm()" style="font-size:0.75rem;">+ Add New Account</button>
+          <!-- Active VFS Account Selector -->
+          <div style="background:rgba(15,23,42,0.6); border:1px solid rgba(56,189,248,0.25); border-radius:10px; padding:0.9rem; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+              <label style="font-size:0.82rem; font-weight:700; color:#38bdf8;">ACTIVE VFS SESSION PROFILE</label>
+              <button type="button" class="btn-act" onclick="openNewModalVfsForm()" style="font-size:0.72rem;">+ Clear to New Account</button>
             </div>
-            <select id="modalVfsAccountSelect" class="form-control" style="width:100%; margin-bottom:0.5rem;" onchange="onModalVfsSelectChange(this.value)">
+            <select id="modalVfsAccountSelect" class="form-control" style="width:100%;" onchange="onModalVfsSelectChange(this.value)">
               <option value="">Loading accounts...</option>
             </select>
           </div>
 
-          <div id="modalVfsFormFields">
+          <!-- Section 1: Primary VFS Account -->
+          <div style="background:rgba(15,23,42,0.55); border:1px solid rgba(56,189,248,0.2); border-radius:10px; padding:1rem; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+              <span style="font-size:0.83rem; font-weight:700; color:#38bdf8;">1. PRIMARY VFS GLOBAL ACCOUNT</span>
+              <span class="badge" style="background:rgba(56,189,248,0.15); color:#38bdf8; font-size:0.7rem; padding:2px 8px; border-radius:4px;">Main Booking Portal</span>
+            </div>
             <input type="hidden" id="cfg_vfs_account_id">
-            <div class="form-row">
+            <div class="form-row" style="margin-bottom:0.5rem;">
               <div class="form-group col-12">
                 <label>Account Label / Friendly Name</label>
-                <input type="text" id="cfg_vfs_account_name" placeholder="e.g. Milan - Bulgaria VFS (or Operator Primary)">
+                <input type="text" id="cfg_vfs_account_name" placeholder="e.g. Operator Primary - Bulgaria VFS">
               </div>
             </div>
             <div class="form-row">
               <div class="form-group col-6">
-                <label>VFS Account Email*</label>
-                <input type="email" name="VFS_EMAIL" id="cfg_vfs_email" required>
+                <label>Primary VFS Login Email*</label>
+                <input type="email" name="VFS_EMAIL" id="cfg_vfs_email" placeholder="e.g. operator@example.com" required>
               </div>
               <div class="form-group col-6">
-                <label>VFS Account Password*</label>
+                <label>Primary VFS Password*</label>
                 <div style="position:relative;">
-                  <input type="password" name="VFS_PASSWORD" id="cfg_vfs_password" required>
+                  <input type="password" name="VFS_PASSWORD" id="cfg_vfs_password" placeholder="••••••••" required>
                   <button type="button" onclick="toggleInputType('cfg_vfs_password')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:#94a3b8; cursor:pointer;" title="Toggle Password">👁️</button>
                 </div>
               </div>
             </div>
+          </div>
 
+          <!-- Section 2: Secondary VFS Account -->
+          <div style="background:rgba(15,23,42,0.55); border:1px solid rgba(148,163,184,0.18); border-radius:10px; padding:1rem; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+              <span style="font-size:0.83rem; font-weight:700; color:#cbd5e1;">2. SECONDARY VFS GLOBAL ACCOUNT (FAILOVER / ROTATION)</span>
+              <span class="badge" style="background:rgba(148,163,184,0.15); color:#94a3b8; font-size:0.7rem; padding:2px 8px; border-radius:4px;">Optional Backup</span>
+            </div>
             <div class="form-row">
               <div class="form-group col-6">
-                <label>Gmail User for OTP*</label>
-                <input type="email" name="VFS_GMAIL_USER" id="cfg_gmail_user" required>
+                <label>Secondary VFS Login Email</label>
+                <input type="email" name="VFS_EMAIL_SECONDARY" id="cfg_vfs_email_secondary" placeholder="e.g. backup@example.com">
               </div>
               <div class="form-group col-6">
-                <label>Gmail App Password (16-char)*</label>
+                <label>Secondary VFS Password</label>
                 <div style="position:relative;">
-                  <input type="password" name="VFS_GMAIL_APP_PASSWORD" id="cfg_gmail_app_pwd" placeholder="xxxx xxxx xxxx xxxx" required>
+                  <input type="password" name="VFS_PASSWORD_SECONDARY" id="cfg_vfs_password_secondary" placeholder="••••••••">
+                  <button type="button" onclick="toggleInputType('cfg_vfs_password_secondary')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:#94a3b8; cursor:pointer;" title="Toggle Password">👁️</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3: Email OTP Retrieval & Alerts (Gmail or Hostinger) -->
+          <div style="background:rgba(15,23,42,0.55); border:1px solid rgba(249,115,22,0.22); border-radius:10px; padding:1rem; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+              <span style="font-size:0.83rem; font-weight:700; color:#f97316;">3. EMAIL OTP RETRIEVAL & SLOT ALERTS</span>
+              <span id="tabOtpHostBadge" class="badge" style="background:rgba(249,115,22,0.15); color:#f97316; font-size:0.7rem; padding:2px 8px; border-radius:4px;">imap.gmail.com:993</span>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-4">
+                <label>Email Provider*</label>
+                <select name="EMAIL_PROVIDER" id="cfg_email_provider" onchange="onIndexEmailProviderChange(this.value)">
+                  <option value="gmail">Gmail (Google Workspace)</option>
+                  <option value="hostinger">Hostinger Webmail</option>
+                </select>
+              </div>
+              <div class="form-group col-4">
+                <label>OTP / Alert Mailbox*</label>
+                <input type="email" name="VFS_GMAIL_USER" id="cfg_gmail_user" placeholder="e.g. mytutorankit@gmail.com" required>
+              </div>
+              <div class="form-group col-4">
+                <label>App Password / Mail Pass*</label>
+                <div style="position:relative;">
+                  <input type="password" name="VFS_GMAIL_APP_PASSWORD" id="cfg_gmail_app_pwd" placeholder="16-char app pass or mailbox pass" required>
                   <button type="button" onclick="toggleInputType('cfg_gmail_app_pwd')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:#94a3b8; cursor:pointer;" title="Toggle Password">👁️</button>
                 </div>
               </div>
             </div>
-
-            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-bottom:1.25rem;">
-              <button type="button" class="btn-act" onclick="testModalAccountOtp()">⚡ Test Live Gmail OTP</button>
-              <button type="button" class="btn-act" onclick="saveActiveVfsAccountFromModal()" style="background:rgba(56,189,248,0.2); border-color:#38bdf8; color:#38bdf8;">💾 Save Account to DB</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem;">
+              <span id="tabOtpHelperText" style="font-size:0.74rem; color:#94a3b8;">Uses IMAP SSL Port 993 & SMTP Port 465 for instant OTP code fetching.</span>
+              <button type="button" class="btn-act" onclick="testIndexUserImap()" style="padding:4px 12px; font-size:0.76rem;">⚡ Test Live IMAP Connection</button>
             </div>
           </div>
 
+          <!-- Section 4: Telegram Routing -->
+          <div style="background:rgba(15,23,42,0.55); border:1px solid rgba(14,165,233,0.22); border-radius:10px; padding:1rem; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+              <span style="font-size:0.83rem; font-weight:700; color:#38bdf8;">4. TELEGRAM NOTIFICATIONS & SLOT ALERTS</span>
+              <a href="https://t.me/userinfobot" target="_blank" style="color:#38bdf8; font-size:0.72rem; text-decoration:none;">Find ID via @userinfobot &rarr;</a>
+            </div>
+            <div class="form-row">
+              <div class="form-group col-6">
+                <label>Telegram Chat ID</label>
+                <input type="text" name="TELEGRAM_CHAT_ID" id="cfg_telegram_chat_id" placeholder="e.g. 7815919062 or 8895308694">
+              </div>
+              <div class="form-group col-6">
+                <label>Custom Bot Token (Optional)</label>
+                <input type="text" name="TELEGRAM_BOT_TOKEN" id="cfg_telegram_bot_token" placeholder="Leave blank to use system bot">
+              </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:0.4rem;">
+              <button type="button" class="btn-act" onclick="testIndexTelegramPing()" style="padding:4px 12px; font-size:0.76rem;">🔔 Send Test Telegram Ping</button>
+            </div>
+          </div>
+
+          <!-- Section 5: Browser Channel & Execution Mode -->
           <div class="form-row">
             <div class="form-group col-6">
               <label>Browser Channel</label>
@@ -1288,6 +1358,7 @@
         // Load saved applicant profiles & VFS accounts in background
         loadDbProfiles();
         await loadOperatorVfsAccounts(cfg);
+        await loadUserCredentials();
       } catch (e) {
         console.error("Could not load config:", e);
       }
@@ -1520,6 +1591,140 @@
       const inp = document.getElementById(inputId);
       if (inp) {
         inp.type = (inp.type === "password") ? "text" : "password";
+      }
+    }
+
+    async function loadUserCredentials() {
+      try {
+        const res = await fetch('/api/user/credentials');
+        const data = await res.json();
+        if (!data.success || !data.credentials) return;
+        const c = data.credentials;
+
+        const setV = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined && val !== null) el.value = val; };
+        if (c.vfs_email) setV('cfg_vfs_email', c.vfs_email);
+        if (c.vfs_password) setV('cfg_vfs_password', c.vfs_password);
+        setV('cfg_vfs_email_secondary', c.vfs_email_secondary || '');
+        setV('cfg_vfs_password_secondary', c.vfs_password_secondary || '');
+        setV('cfg_email_provider', c.email_provider || 'gmail');
+        onIndexEmailProviderChange(c.email_provider || 'gmail');
+        if (c.otp_email) setV('cfg_gmail_user', c.otp_email);
+        if (c.otp_app_password) setV('cfg_gmail_app_pwd', c.otp_app_password);
+        setV('cfg_telegram_chat_id', c.telegram_chat_id || '');
+        setV('cfg_telegram_bot_token', c.telegram_bot_token || '');
+
+        // Update sidebar card displays
+        const sideEmail = document.getElementById('sideVfsEmailDisp');
+        if (sideEmail && c.vfs_email) sideEmail.innerText = c.vfs_email;
+        const sideEmailSec = document.getElementById('sideVfsEmailSecDisp');
+        if (sideEmailSec) sideEmailSec.innerText = c.vfs_email_secondary || '--';
+
+        const sideOtpMail = document.getElementById('sideGmailUserDisp');
+        if (sideOtpMail && c.otp_email) sideOtpMail.innerText = c.otp_email;
+
+        const sideStatus = document.getElementById('sideOtpStatus');
+        if (sideStatus) {
+          const provName = (c.email_provider === 'hostinger') ? 'Hostinger' : 'Gmail';
+          const host = (c.email_provider === 'hostinger') ? 'imap.hostinger.com:993' : 'imap.gmail.com:993';
+          sideStatus.innerText = `${provName} (${host})`;
+        }
+
+        const sideTg = document.getElementById('sideTelegramChatDisp');
+        if (sideTg) sideTg.innerText = c.telegram_chat_id || 'Not Set';
+
+        // Update nav Telegram pill
+        const navTg = document.getElementById('navTelegramPill');
+        if (navTg && c.telegram_chat_id) {
+          navTg.innerHTML = `<span>📱 Telegram: <strong>${c.telegram_chat_id}</strong> <span class="pill-dot active-dot" style="margin-left:2px;"></span></span>`;
+        }
+      } catch (e) {
+        console.debug('Error loading user credentials:', e);
+      }
+    }
+
+    function onIndexEmailProviderChange(prov) {
+      const badge = document.getElementById('tabOtpHostBadge');
+      const helper = document.getElementById('tabOtpHelperText');
+      if (prov === 'hostinger') {
+        if (badge) {
+          badge.textContent = 'imap.hostinger.com:993 (SSL)';
+          badge.style.background = 'rgba(168, 85, 247, 0.15)';
+          badge.style.color = '#c084fc';
+        }
+        if (helper) helper.textContent = 'Uses Hostinger Webmail IMAP (Port 993) and SMTP (Port 465) for OTP retrieval and alerts.';
+      } else {
+        if (badge) {
+          badge.textContent = 'imap.gmail.com:993 (SSL)';
+          badge.style.background = 'rgba(249, 115, 22, 0.15)';
+          badge.style.color = '#f97316';
+        }
+        if (helper) helper.textContent = 'Uses Google Workspace / Gmail IMAP (Port 993) with 16-character App Password.';
+      }
+    }
+
+    async function testIndexUserImap() {
+      const prov = document.getElementById('cfg_email_provider') ? document.getElementById('cfg_email_provider').value : 'gmail';
+      const email = (document.getElementById('cfg_gmail_user') ? document.getElementById('cfg_gmail_user').value : '').trim();
+      const appPwd = document.getElementById('cfg_gmail_app_pwd') ? document.getElementById('cfg_gmail_app_pwd').value : '';
+
+      if (!email || !appPwd) {
+        alert('Please enter your OTP Mailbox Address and Password / App Password.');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/test_imap_otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider: prov,
+            email: email,
+            app_password: appPwd
+          })
+        });
+        const d = await res.json();
+        if (d.success) {
+          alert(`✅ ${prov.toUpperCase()} IMAP Connection Successful!\n\n${d.message}\nHost: ${d.host}:${d.port}`);
+        } else {
+          alert(`❌ ${prov.toUpperCase()} IMAP Connection Failed:\n\n${d.message}`);
+        }
+      } catch (e) {
+        alert('Network error testing IMAP connection: ' + e);
+      }
+    }
+
+    async function testIndexTelegramPing() {
+      const chatId = document.getElementById('cfg_telegram_chat_id') ? document.getElementById('cfg_telegram_chat_id').value.trim() : '';
+      const botToken = document.getElementById('cfg_telegram_bot_token') ? document.getElementById('cfg_telegram_bot_token').value.trim() : '';
+
+      if (!chatId) {
+        alert('Please enter your Telegram Chat ID first.');
+        return;
+      }
+
+      try {
+        await fetch('/api/user/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            telegram_chat_id: chatId,
+            telegram_bot_token: botToken || undefined,
+            telegram_notifications: true,
+            email_notifications: true
+          })
+        });
+      } catch (e) {}
+
+      try {
+        const res = await fetch('/api/user/test_telegram', { method: 'POST' });
+        const d = await res.json();
+        if (d.success) {
+          alert('✅ ' + d.message);
+        } else {
+          alert('❌ ' + d.message);
+        }
+      } catch (e) {
+        alert('Error testing Telegram ping: ' + e);
       }
     }
 
@@ -1847,6 +2052,28 @@
       btn.innerText = "Saving...";
 
       try {
+        // Persist credentials to operator's personal user account
+        try {
+          const credPayload = {
+            vfs_email: (document.getElementById("cfg_vfs_email") ? document.getElementById("cfg_vfs_email").value : "").trim(),
+            vfs_password: document.getElementById("cfg_vfs_password") ? document.getElementById("cfg_vfs_password").value : "",
+            vfs_email_secondary: (document.getElementById("cfg_vfs_email_secondary") ? document.getElementById("cfg_vfs_email_secondary").value : "").trim(),
+            vfs_password_secondary: document.getElementById("cfg_vfs_password_secondary") ? document.getElementById("cfg_vfs_password_secondary").value : "",
+            email_provider: document.getElementById("cfg_email_provider") ? document.getElementById("cfg_email_provider").value : "gmail",
+            otp_email: (document.getElementById("cfg_gmail_user") ? document.getElementById("cfg_gmail_user").value : "").trim(),
+            otp_app_password: document.getElementById("cfg_gmail_app_pwd") ? document.getElementById("cfg_gmail_app_pwd").value : "",
+            telegram_chat_id: (document.getElementById("cfg_telegram_chat_id") ? document.getElementById("cfg_telegram_chat_id").value : "").trim(),
+            telegram_bot_token: (document.getElementById("cfg_telegram_bot_token") ? document.getElementById("cfg_telegram_bot_token").value : "").trim()
+          };
+          await fetch("/api/user/credentials", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(credPayload)
+          });
+        } catch (eCred) {
+          console.warn("Could not save user credentials:", eCred);
+        }
+
         const res = await fetch("/api/config", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

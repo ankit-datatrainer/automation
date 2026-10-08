@@ -314,6 +314,8 @@ def favicon():
 @app.route("/")
 @login_required
 def index():
+    if session.get("role") == "super_admin":
+        return redirect(url_for("admin_portal"))
     return render_template(
         "index.html",
         cfg=cfg,
@@ -328,6 +330,8 @@ def index():
 @login_required
 def live_view():
     """Standalone, crystal-clear, full-window live browser view."""
+    if session.get("role") == "super_admin":
+        return redirect(url_for("admin_portal"))
     return render_template(
         "live.html",
         cfg=cfg,
@@ -360,21 +364,53 @@ def admin_users():
         email = data.get("email", "").strip()
         role = data.get("role", "user")
 
+        # Optional user credentials supplied during creation
+        vfs_email = data.get("vfs_email", "").strip()
+        vfs_password = data.get("vfs_password", "").strip()
+        vfs_email_secondary = data.get("vfs_email_secondary", "").strip()
+        vfs_password_secondary = data.get("vfs_password_secondary", "").strip()
+        email_provider = data.get("email_provider", "gmail").strip().lower()
+        otp_email = data.get("otp_email", "").strip()
+        otp_app_password = data.get("otp_app_password", "").strip()
+        telegram_chat_id = data.get("telegram_chat_id", "").strip()
+        telegram_bot_token = data.get("telegram_bot_token", "").strip()
+
         ok, msg, new_id = vfs_db.create_user(
             username=username,
             password=password,
             full_name=full_name,
             email=email,
             role=role,
-            created_by=session.get("username", "super_admin")
+            created_by=session.get("username", "super_admin"),
+            vfs_email=vfs_email,
+            vfs_password=vfs_password,
+            vfs_email_secondary=vfs_email_secondary,
+            vfs_password_secondary=vfs_password_secondary,
+            email_provider=email_provider,
+            otp_email=otp_email,
+            otp_app_password=otp_app_password,
+            telegram_chat_id=telegram_chat_id,
+            telegram_bot_token=telegram_bot_token,
         )
         if ok:
-            push_log("ADMIN", f"Super Admin created new user '{username}' (role: {role}).")
+            push_log("ADMIN", f"Super Admin created user '{username}' (role: {role}).")
             return jsonify({"success": True, "message": msg, "user_id": new_id})
         return jsonify({"success": False, "message": msg}), 400
 
     users = vfs_db.get_all_users()
     return jsonify({"success": True, "users": users})
+
+
+@app.route("/api/admin/users/<int:user_id>/full", methods=["POST"])
+@super_admin_required
+def admin_user_update_full(user_id):
+    """Super Admin comprehensive update of user details and credentials."""
+    data = request.get_json(force=True, silent=True) or {}
+    ok, msg = vfs_db.update_user_full(user_id, data)
+    if ok:
+        push_log("ADMIN", f"Super Admin updated user #{user_id} profile and credentials.")
+        return jsonify({"success": True, "message": msg})
+    return jsonify({"success": False, "message": msg}), 400
 
 
 @app.route("/api/admin/users/<int:user_id>/status", methods=["POST"])
@@ -412,6 +448,52 @@ def admin_delete_user(user_id):
         push_log("ADMIN", f"Deleted user account #{user_id}.")
         return jsonify({"success": True, "message": msg})
     return jsonify({"success": False, "message": msg}), 400
+
+
+@app.route("/api/user/credentials", methods=["GET", "POST"])
+@login_required
+def user_credentials_api():
+    """Operator self-service endpoint to view and update credentials."""
+    uid = session.get("user_id")
+    if not uid:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    if request.method == "POST":
+        data = request.get_json(force=True, silent=True) or {}
+        ok, msg = vfs_db.update_user_credentials(uid, data)
+        if ok:
+            push_log("AUTH", f"User #{uid} updated personal credentials.")
+            return jsonify({"success": True, "message": msg})
+        return jsonify({"success": False, "message": msg}), 400
+
+    creds = vfs_db.get_user_credentials(uid)
+    if not creds:
+        return jsonify({"success": False, "message": "User not found"}), 404
+    return jsonify({"success": True, "credentials": creds})
+
+
+@app.route("/api/test_imap_otp", methods=["POST"])
+@login_required
+def test_imap_otp_api():
+    """Test live IMAP connectivity for Gmail or Hostinger."""
+    data = request.get_json(force=True, silent=True) or {}
+    provider = (data.get("provider") or "gmail").strip().lower()
+    email_user = (data.get("email") or "").strip()
+    app_pwd = data.get("app_password") or ""
+    custom_host = (data.get("host") or "").strip()
+    custom_port = data.get("port")
+
+    default_host = "imap.hostinger.com" if provider == "hostinger" else "imap.gmail.com"
+    host = custom_host or default_host
+    try:
+        port = int(custom_port) if custom_port else 993
+    except Exception:
+        port = 993
+
+    import vfs_otp
+    ok, msg = vfs_otp.test_imap_connection(email_user, app_pwd, host=host, port=port)
+    return jsonify({"success": ok, "message": msg, "host": host, "port": port})
+
 
 
 @app.route("/api/admin/db/stats", methods=["GET"])
@@ -689,6 +771,45 @@ def user_test_telegram():
     if not ok:
         return jsonify({"success": False, "message": f"Telegram test failed: {msg}"}), 400
     return jsonify({"success": True, "message": f"Telegram ping delivered successfully to Chat ID {chat_id}!"})
+
+
+@app.route("/api/user/credentials", methods=["GET", "POST"])
+@login_required
+def api_user_credentials():
+    """Retrieve or update personal VFS, OTP (Gmail/Hostinger), and Telegram credentials for the logged-in user."""
+    uid = session.get("user_id")
+    if not uid:
+        return jsonify({"success": False, "message": "Not authenticated."}), 401
+
+    if request.method == "POST":
+        data = request.get_json(force=True, silent=True) or {}
+        ok, msg = vfs_db.update_user_credentials(uid, data)
+        if ok:
+            v_email = data.get("vfs_email")
+            v_pass = data.get("vfs_password")
+            o_email = data.get("otp_email")
+            o_pass = data.get("otp_app_password")
+            if v_email and v_pass:
+                try:
+                    vfs_db.save_vfs_account({
+                        "vfs_email": v_email,
+                        "vfs_password": v_pass,
+                        "gmail_user": o_email or v_email,
+                        "gmail_app_password": o_pass or "",
+                        "account_name": f"{session.get('username', 'Operator')} Primary",
+                        "is_active": 1
+                    }, current_user_id=uid)
+                except Exception as ex:
+                    log.warning(f"Could not auto-sync vfs_accounts table: {ex}")
+            push_log("USER", f"Operator '{session.get('username')}' updated personal VFS & OTP credentials.")
+            return jsonify({"success": True, "message": msg})
+        return jsonify({"success": False, "message": msg}), 400
+
+    creds = vfs_db.get_user_credentials(uid)
+    if creds:
+        return jsonify({"success": True, "credentials": creds})
+    return jsonify({"success": False, "message": "User not found."}), 404
+
 
 
 

@@ -54,8 +54,8 @@ def test_auth_login_api_success(client):
 
 def test_auth_login_api_operator(client):
     rv = client.post("/api/auth/login", json={
-        "username": "operator1",
-        "password": "Operator@2026!"
+        "username": "ankit.developer2004@gmail.com",
+        "password": "Dev@2026"
     })
     assert rv.status_code == 200
     data = rv.get_json()
@@ -79,12 +79,19 @@ def test_unauthenticated_redirect(client):
     assert "/login" in rv.headers["Location"]
 
 
-def test_index_route_authenticated(auth_client):
-    rv = auth_client.get("/")
-    assert rv.status_code == 200
-    assert b"VFS Global Automation Suite" in rv.data
-    assert b"Start Automation" in rv.data
-    assert b"Super Admin" in rv.data
+def test_index_route_superadmin_redirect(auth_client):
+    # Super admin cannot open operator booking dashboard; redirected to /admin
+    rv_admin = auth_client.get("/")
+    assert rv_admin.status_code == 302
+    assert "/admin" in rv_admin.headers["Location"]
+
+
+def test_index_route_operator_access(user_client):
+    # Normal operator can open booking dashboard
+    rv_user = user_client.get("/")
+    assert rv_user.status_code == 200
+    assert b"VFS Global Automation Suite" in rv_user.data
+    assert b"Start Automation" in rv_user.data
 
 
 def test_admin_portal_access_superadmin(auth_client):
@@ -112,11 +119,19 @@ def test_status_api(auth_client):
     assert data["applicant_count"] >= 1
 
 
-def test_live_route_authenticated(auth_client):
-    rv = auth_client.get("/live")
-    assert rv.status_code == 200
-    assert b"Crystal Clear Live View" in rv.data
-    assert b"streamImg" in rv.data
+def test_live_route_superadmin_redirect(auth_client):
+    # Super Admin is redirected away from live booking view
+    rv_admin = auth_client.get("/live")
+    assert rv_admin.status_code == 302
+    assert "/admin" in rv_admin.headers["Location"]
+
+
+def test_live_route_operator_access(user_client):
+    # Operator gets full live screen
+    rv_user = user_client.get("/live")
+    assert rv_user.status_code == 200
+    assert b"Crystal Clear Live View" in rv_user.data
+    assert b"streamImg" in rv_user.data
 
 
 def test_admin_users_api(auth_client):
@@ -127,8 +142,8 @@ def test_admin_users_api(auth_client):
     assert len(data["users"]) >= 3
     usernames = [u["username"] for u in data["users"]]
     assert "superadmin" in usernames
-    assert "operator1" in usernames
-    assert "operator2" in usernames
+    assert "ankit" in usernames or "operator1" in usernames
+    assert "vikas" in usernames or "operator2" in usernames
 
 
 def test_multi_applicants_config(auth_client):

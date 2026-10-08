@@ -684,13 +684,9 @@
           <span>🕒 <span id="adminIstClock">{{ server_ist_time or '--:--:-- IST' }}</span></span>
         </div>
 
-        <a href="/" class="btn-portal-back" title="Go to Automation Controller">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="19" y1="12" x2="5" y2="12"></line>
-            <polyline points="12 19 5 12 12 5"></polyline>
-          </svg>
-          <span>Main Automation Suite</span>
-        </a>
+        <div class="admin-user-pill" style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); color: #fbbf24;" title="Administrative Control Center - Direct dashboard access restricted for Super Admin">
+          <span>🛡️ Admin Console Authority</span>
+        </div>
 
         <div class="admin-user-pill">
           <div class="admin-avatar">{{ current_user.username[0] | upper }}</div>
@@ -781,21 +777,19 @@
           <table class="admin-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Username</th>
-                <th>Full Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Telegram Alerts</th>
-                <th>Last Login</th>
-                <th>Created</th>
-                <th>Actions</th>
+                <th style="min-width: 220px;">Operator Account</th>
+                <th>Role & Access</th>
+                <th style="min-width: 190px;">Primary VFS Portal Login</th>
+                <th style="min-width: 170px;">Secondary VFS Login</th>
+                <th style="min-width: 200px;">OTP Mailbox (Gmail / Hostinger)</th>
+                <th style="min-width: 180px;">Telegram Alert Routing</th>
+                <th>Last Activity</th>
+                <th style="min-width: 220px;">Manage & Actions</th>
               </tr>
             </thead>
             <tbody id="usersTableBody">
               <tr>
-                <td colspan="10" style="text-align:center; padding: 2rem; color: #94a3b8;">Loading user accounts...</td>
+                <td colspan="8" style="text-align:center; padding: 2rem; color: #94a3b8;">Loading user accounts...</td>
               </tr>
             </tbody>
           </table>
@@ -1259,40 +1253,244 @@ pm2 save</pre>
 
   <!-- Create User Modal -->
   <div class="admin-modal-backdrop" id="createUserModal">
-    <div class="admin-modal">
+    <div class="admin-modal" style="max-width: 680px; max-height: 90vh; overflow-y: auto;">
       <div class="admin-modal-header">
-        <h3>Create New User Account</h3>
+        <h3>Create New User & Provision Credentials</h3>
         <button class="admin-modal-close" onclick="closeCreateUserModal()">&times;</button>
       </div>
       <form onsubmit="handleCreateUserSubmit(event)">
         <div class="admin-modal-body">
-          <div class="form-group" style="margin-bottom:1rem;">
-            <label class="form-label">Username *</label>
-            <input type="text" id="newUsername" class="form-control" required placeholder="e.g. operator3">
+          <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+            <span style="font-size: 0.85rem; color: #c7d2fe; font-weight: 600;">👤 Section 1: Dashboard Access & Account Identity</span>
           </div>
-          <div class="form-group" style="margin-bottom:1rem;">
-            <label class="form-label">Full Name</label>
-            <input type="text" id="newFullName" class="form-control" placeholder="e.g. John Doe">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label class="form-label">Username *</label>
+              <input type="text" id="newUsername" class="form-control" required placeholder="e.g. vikas">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Full Name</label>
+              <input type="text" id="newFullName" class="form-control" placeholder="e.g. Vikas Bhardwaj">
+            </div>
           </div>
-          <div class="form-group" style="margin-bottom:1rem;">
-            <label class="form-label">Email Address</label>
-            <input type="email" id="newEmail" class="form-control" placeholder="e.g. operator3@vfsautomation.com">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label class="form-label">Dashboard Login Email *</label>
+              <input type="email" id="newEmail" class="form-control" required placeholder="e.g. bhardwajvikas824@gmail.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Password * (min 6 chars)</label>
+              <input type="password" id="newPassword" class="form-control" required placeholder="••••••••••••">
+            </div>
           </div>
-          <div class="form-group" style="margin-bottom:1rem;">
-            <label class="form-label">Password * (min 6 characters)</label>
-            <input type="password" id="newPassword" class="form-control" required placeholder="••••••••••••">
-          </div>
-          <div class="form-group" style="margin-bottom:0.5rem;">
+          <div class="form-group" style="margin-bottom: 1.25rem;">
             <label class="form-label">Account Role *</label>
             <select id="newRole" class="form-control">
               <option value="user" selected>Normal User (Automation Operator)</option>
               <option value="super_admin">Super Administrator (Full Management)</option>
             </select>
           </div>
+
+          <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+            <span style="font-size: 0.85rem; color: #7dd3fc; font-weight: 600;">🔐 Section 2: VFS Global Portal Credentials (Primary & Secondary)</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label class="form-label">Primary VFS Email</label>
+              <input type="email" id="newVfsEmail" class="form-control" placeholder="e.g. oli930110@gmail.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Primary VFS Password</label>
+              <input type="password" id="newVfsPassword" class="form-control" placeholder="••••••••••••">
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1.25rem;">
+            <div class="form-group">
+              <label class="form-label">Secondary VFS Email (Optional)</label>
+              <input type="email" id="newVfsEmailSec" class="form-control" placeholder="e.g. backup@vfs.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Secondary VFS Password</label>
+              <input type="password" id="newVfsPasswordSec" class="form-control" placeholder="••••••••••••">
+            </div>
+          </div>
+
+          <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+            <span style="font-size: 0.85rem; color: #d8b4fe; font-weight: 600;">📧 Section 3: OTP Mailbox & Alert Provider (Gmail / Hostinger)</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 0.85rem; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label class="form-label">Email Provider *</label>
+              <select id="newEmailProvider" class="form-control">
+                <option value="gmail" selected>Google Gmail (imap.gmail.com:993)</option>
+                <option value="hostinger">Hostinger Webmail (imap.hostinger.com:993)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">OTP Mailbox Email</label>
+              <input type="email" id="newOtpEmail" class="form-control" placeholder="e.g. mytutorankit@gmail.com">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label class="form-label">App Password / Email Password</label>
+            <input type="password" id="newOtpAppPwd" class="form-control" placeholder="e.g. hwzw lrzx xovu ybgs (16-digit Google App Password)">
+          </div>
+
+          <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+            <span style="font-size: 0.85rem; color: #6ee7b7; font-weight: 600;">📱 Section 4: Telegram Slot Notifications & Alerts</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;">
+            <div class="form-group">
+              <label class="form-label">Telegram Chat ID</label>
+              <input type="text" id="newTelegramChatId" class="form-control" placeholder="e.g. 8895308694">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Personal Bot Token (Optional)</label>
+              <input type="text" id="newTelegramBotToken" class="form-control" placeholder="e.g. 8614915379:AAEauGr9...">
+            </div>
+          </div>
         </div>
         <div class="admin-modal-footer">
           <button type="button" class="btn btn-secondary" onclick="closeCreateUserModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="btnSaveUser">Create User</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveUser">Create User & Save Credentials</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit User & Credentials Modal -->
+  <div class="admin-modal-backdrop" id="editUserModal">
+    <div class="admin-modal" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+      <div class="admin-modal-header">
+        <h3>Manage User Profile & Operator Credentials</h3>
+        <button class="admin-modal-close" onclick="closeEditUserModal()">&times;</button>
+      </div>
+      <form onsubmit="handleEditUserSubmit(event)">
+        <input type="hidden" id="editUserId">
+        <div class="admin-modal-body">
+          <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+            <span style="font-size: 0.85rem; color: #c7d2fe; font-weight: 600;">👤 Section 1: User Account & Platform Role</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label class="form-label">Username *</label>
+              <input type="text" id="editUsername" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Full Name</label>
+              <input type="text" id="editFullName" class="form-control">
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label class="form-label">Dashboard Login Email</label>
+              <input type="email" id="editEmail" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Change Password (leave blank to keep)</label>
+              <input type="password" id="editPassword" class="form-control" placeholder="Enter new password to change">
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1.25rem;">
+            <div class="form-group">
+              <label class="form-label">Account Role *</label>
+              <select id="editRole" class="form-control">
+                <option value="user">Normal User (Automation Operator)</option>
+                <option value="super_admin">Super Administrator (Full Management)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Account Status</label>
+              <select id="editStatus" class="form-control">
+                <option value="active">Active (Full Access)</option>
+                <option value="inactive">Inactive / Suspended</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+            <span style="font-size: 0.85rem; color: #7dd3fc; font-weight: 600;">🔐 Section 2: VFS Global Credentials</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label class="form-label">Primary VFS Email</label>
+              <input type="email" id="editVfsEmail" class="form-control" placeholder="e.g. oli930110@gmail.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Primary VFS Password</label>
+              <div style="position: relative;">
+                <input type="password" id="editVfsPassword" class="form-control" placeholder="••••••••••••">
+                <button type="button" onclick="toggleInputType('editVfsPassword')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:#94a3b8; cursor:pointer;">👁️</button>
+              </div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1.25rem;">
+            <div class="form-group">
+              <label class="form-label">Secondary VFS Email</label>
+              <input type="email" id="editVfsEmailSec" class="form-control" placeholder="Secondary portal email">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Secondary VFS Password</label>
+              <div style="position: relative;">
+                <input type="password" id="editVfsPasswordSec" class="form-control" placeholder="••••••••••••">
+                <button type="button" onclick="toggleInputType('editVfsPasswordSec')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:#94a3b8; cursor:pointer;">👁️</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 0.85rem; color: #d8b4fe; font-weight: 600;">📧 Section 3: OTP Mailbox (Gmail or Hostinger)</span>
+              <button type="button" class="btn-act" onclick="testModalUserImap()" style="padding: 2px 8px; font-size: 0.75rem;">⚡ Test IMAP</button>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 0.85rem; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label class="form-label">Provider *</label>
+              <select id="editEmailProvider" class="form-control">
+                <option value="gmail">Gmail (imap.gmail.com:993)</option>
+                <option value="hostinger">Hostinger (imap.hostinger.com:993)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">OTP Mailbox Email</label>
+              <input type="email" id="editOtpEmail" class="form-control" placeholder="e.g. mytutorankit@gmail.com">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 0.75rem;">
+            <label class="form-label">App Password / Webmail Password</label>
+            <div style="position: relative;">
+              <input type="password" id="editOtpAppPwd" class="form-control" placeholder="e.g. hwzw lrzx xovu ybgs">
+              <button type="button" onclick="toggleInputType('editOtpAppPwd')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:#94a3b8; cursor:pointer;">👁️</button>
+            </div>
+          </div>
+          <div id="modalImapFeedback" style="display: none; padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; margin-bottom: 1.25rem;"></div>
+
+          <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+            <span style="font-size: 0.85rem; color: #6ee7b7; font-weight: 600;">📱 Section 4: Telegram Alert Routing & Preferences</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label class="form-label">Telegram Chat ID</label>
+              <input type="text" id="editTelegramChatId" class="form-control" placeholder="e.g. 8895308694">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Personal Bot Token</label>
+              <input type="text" id="editTelegramBotToken" class="form-control" placeholder="Leave empty to use System Bot">
+            </div>
+          </div>
+          <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: #cbd5e1; cursor: pointer;">
+              <input type="checkbox" id="editTgAlerts" checked> Instant Telegram Slot Alerts
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: #cbd5e1; cursor: pointer;">
+              <input type="checkbox" id="editEmailAlerts" checked> Email Slot Alerts
+            </label>
+          </div>
+        </div>
+        <div class="admin-modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeEditUserModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnUpdateUser">Save Changes</button>
         </div>
       </form>
     </div>
@@ -1445,6 +1643,17 @@ pm2 save</pre>
       }
     }
 
+    let _adminUsersCache = [];
+
+    function escapeJs(str) {
+      if (!str) return '';
+      return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    }
+
+    function revealPassword(account, pwd) {
+      alert(`🔐 Password for [${account}]:\n\n${pwd}`);
+    }
+
     async function fetchUsers() {
       try {
         const res = await fetch('/api/admin/users');
@@ -1452,44 +1661,107 @@ pm2 save</pre>
         const tbody = document.getElementById('usersTableBody');
 
         if (!data.success || !data.users || data.users.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:2rem; color:#94a3b8;">No users found in database.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:2rem; color:#94a3b8;">No users found in database.</td></tr>';
           return;
         }
 
-        tbody.innerHTML = data.users.map(u => {
+        _adminUsersCache = data.users;
+
+        tbody.innerHTML = data.users.map((u) => {
           const isSuper = u.role === 'super_admin';
           const roleClass = isSuper ? 'super_admin' : 'user';
           const roleLabel = isSuper ? '👑 Super Admin' : '👤 Operator';
           const statusClass = u.status === 'active' ? 'active' : 'inactive';
-          const statusLabel = u.status === 'active' ? 'Active' : 'Inactive';
-          const toggleAction = u.status === 'active' ? 'Deactivate' : 'Activate';
+          const statusLabel = u.status === 'active' ? 'Active' : 'Suspended';
+          const toggleAction = u.status === 'active' ? 'Suspend' : 'Activate';
 
+          // Primary VFS Login
+          const vfsPrimaryHtml = u.vfs_email 
+            ? `<div>
+                 <div style="font-family:'JetBrains Mono'; font-size:0.8rem; color:#38bdf8; font-weight:700;">${escapeHtml(u.vfs_email)}</div>
+                 <div style="font-size:0.75rem; color:#94a3b8; display:flex; align-items:center; gap:0.4rem; margin-top:2px;">
+                   <span>🔑 ${u.vfs_password ? '••••••••' : '<em style="color:#ef4444;">No Pwd</em>'}</span>
+                   ${u.vfs_password ? `<button type="button" class="btn-act" style="padding:1px 5px; font-size:0.68rem;" onclick="revealPassword('${escapeJs(u.vfs_email)}', '${escapeJs(u.vfs_password)}')">View</button>` : ''}
+                 </div>
+               </div>`
+            : `<span style="color:#64748b; font-size:0.8rem;">Not configured</span>`;
+
+          // Secondary VFS Login
+          const vfsSecondaryHtml = u.vfs_email_secondary 
+            ? `<div>
+                 <div style="font-family:'JetBrains Mono'; font-size:0.78rem; color:#c084fc; font-weight:600;">${escapeHtml(u.vfs_email_secondary)}</div>
+                 <div style="font-size:0.72rem; color:#94a3b8; margin-top:2px;">
+                   <span>🔑 ${u.vfs_password_secondary ? '••••••••' : '<em style="color:#ef4444;">No Pwd</em>'}</span>
+                 </div>
+               </div>`
+            : `<span style="color:#475569; font-size:0.78rem;">None</span>`;
+
+          // OTP Mailbox & Provider (Gmail vs Hostinger)
+          const providerBadge = (u.email_provider || 'gmail').toLowerCase() === 'hostinger'
+            ? `<span style="background:rgba(168,85,247,0.18); border:1px solid rgba(168,85,247,0.35); color:#d8b4fe; font-size:0.68rem; font-weight:700; padding:1px 6px; border-radius:4px; text-transform:uppercase;">Hostinger</span>`
+            : `<span style="background:rgba(56,189,248,0.18); border:1px solid rgba(56,189,248,0.35); color:#7dd3fc; font-size:0.68rem; font-weight:700; padding:1px 6px; border-radius:4px; text-transform:uppercase;">Gmail</span>`;
+
+          const otpMailboxHtml = u.otp_email
+            ? `<div>
+                 <div style="display:flex; align-items:center; gap:0.35rem; margin-bottom:2px;">
+                   ${providerBadge}
+                 </div>
+                 <div style="font-family:'JetBrains Mono'; font-size:0.78rem; color:#f1f5f9;">${escapeHtml(u.otp_email)}</div>
+                 <div style="font-size:0.72rem; color:#94a3b8;">${u.otp_app_password ? '<span style="color:#34d399;">● App Pwd Active</span>' : '<span style="color:#ef4444;">No App Pwd</span>'}</div>
+               </div>`
+            : `<span style="color:#64748b; font-size:0.8rem;">Not configured</span>`;
+
+          // Telegram Alert Routing
           const tgDisplay = u.telegram_chat_id 
-            ? `<span style="font-family:'JetBrains Mono'; font-size:0.75rem; color:#38bdf8; background:rgba(56,189,248,0.1); padding:2px 6px; border-radius:6px;">${escapeHtml(u.telegram_chat_id)}</span> ${u.telegram_bot_token ? '<span title="Personal Bot configured" style="font-size:0.75rem; color:#a855f7;">🤖</span>' : ''} ${u.telegram_notifications !== 0 ? '<span title="Instant Telegram alerts active">🔔</span>' : '<span title="Telegram alerts muted">🔕</span>'}`
-            : '<span style="color:#64748b; font-size:0.8rem;">Not configured</span>';
+            ? `<div>
+                 <div style="font-family:'JetBrains Mono'; font-size:0.75rem; color:#38bdf8; background:rgba(56,189,248,0.1); padding:2px 6px; border-radius:6px; display:inline-block; margin-bottom:2px;">
+                   ${escapeHtml(u.telegram_chat_id)}
+                 </div>
+                 <div style="font-size:0.72rem; color:#94a3b8; display:flex; align-items:center; gap:0.35rem;">
+                   ${u.telegram_bot_token ? '<span title="Personal Bot configured" style="color:#c084fc;">🤖 Custom</span>' : '<span style="color:#64748b;">Default Bot</span>'}
+                   · ${u.telegram_notifications !== 0 ? '<span title="Instant alerts enabled" style="color:#34d399;">🔔 Active</span>' : '<span title="Alerts muted" style="color:#f87171;">🔕 Muted</span>'}
+                 </div>
+               </div>`
+            : `<span style="color:#64748b; font-size:0.8rem;">Not configured</span>`;
+
+          const initial = (u.username || 'U')[0].toUpperCase();
 
           return `
             <tr>
-              <td><span style="font-family:'JetBrains Mono'; color:#64748b;">#${u.id}</span></td>
-              <td><strong>${escapeHtml(u.username)}</strong></td>
-              <td>${escapeHtml(u.full_name || '--')}</td>
-              <td><span style="color:#94a3b8;">${escapeHtml(u.email || '--')}</span></td>
-              <td><span class="role-badge ${roleClass}">${roleLabel}</span></td>
-              <td><span class="status-badge-inline ${statusClass}">${statusLabel}</span></td>
+              <td>
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                  <div class="admin-avatar" style="width:34px; height:34px; font-size:0.85rem; font-weight:800; background:#6366f1; flex-shrink:0;">${initial}</div>
+                  <div>
+                    <div style="font-weight:700; color:#fff; font-size:0.92rem;">${escapeHtml(u.full_name || u.username)}</div>
+                    <div style="font-family:'JetBrains Mono'; font-size:0.75rem; color:#94a3b8;">@${escapeHtml(u.username)} <span style="color:#64748b;">(#${u.id})</span></div>
+                    <div style="font-size:0.76rem; color:#cbd5e1;">${escapeHtml(u.email || '--')}</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div style="display:flex; flex-direction:column; gap:0.3rem;">
+                  <span class="role-badge ${roleClass}">${roleLabel}</span>
+                  <span class="status-badge-inline ${statusClass}">${statusLabel}</span>
+                </div>
+              </td>
+              <td>${vfsPrimaryHtml}</td>
+              <td>${vfsSecondaryHtml}</td>
+              <td>${otpMailboxHtml}</td>
               <td>${tgDisplay}</td>
-              <td><span style="font-size:0.8rem; color:#94a3b8;">${u.last_login ? u.last_login.substring(0, 16) : 'Never'}</span></td>
-              <td><span style="font-size:0.8rem; color:#64748b;">${u.created_at ? u.created_at.substring(0, 10) : '--'}</span></td>
+              <td>
+                <div style="font-size:0.78rem; color:#94a3b8;">Login: <strong style="color:#e2e8f0;">${u.last_login ? u.last_login.substring(0, 16) : 'Never'}</strong></div>
+                <div style="font-size:0.72rem; color:#64748b;">Joined: ${u.created_at ? u.created_at.substring(0, 10) : '--'}</div>
+              </td>
               <td>
                 <div class="action-group">
-                  <button class="btn-act btn-user-telegram" onclick="openUserTelegramModal(${u.id}, '${escapeHtml(u.username)}', '${escapeHtml(u.email || '')}', '${escapeHtml(u.telegram_chat_id || '')}', '${escapeHtml(u.telegram_bot_token || '')}', ${u.telegram_notifications !== 0}, ${u.email_notifications !== 0})" title="Configure Telegram & Alerts for this operator">
-                    📱 Telegram
+                  <button class="btn-act" onclick="openEditUserModalById(${u.id})" style="background:rgba(99,102,241,0.15); border-color:rgba(99,102,241,0.35); color:#c7d2fe; font-weight:600;" title="Edit all profile details & credentials">
+                    ✏️ Edit
                   </button>
-
+                  <button class="btn-act" onclick="openResetPwdModal(${u.id}, '${escapeHtml(u.username)}')" title="Reset dashboard login password">
+                    🔑 Reset
+                  </button>
                   <button class="btn-act" onclick="toggleUserStatus(${u.id}, '${u.status}')" title="${toggleAction} Account">
                     ${u.status === 'active' ? '⏸️ Suspend' : '▶️ Activate'}
-                  </button>
-                  <button class="btn-act" onclick="openResetPwdModal(${u.id}, '${escapeHtml(u.username)}')" title="Reset Password">
-                    🔑 Reset
                   </button>
                   ${!isSuper || data.users.filter(x => x.role === 'super_admin').length > 1 ? `
                     <button class="btn-act danger" onclick="deleteUser(${u.id}, '${escapeHtml(u.username)}')" title="Delete User">
@@ -1522,20 +1794,35 @@ pm2 save</pre>
       const email = document.getElementById('newEmail').value.trim();
       const password = document.getElementById('newPassword').value;
       const role = document.getElementById('newRole').value;
-      const btn = document.getElementById('btnSaveUser');
 
+      const vfs_email = document.getElementById('newVfsEmail').value.trim();
+      const vfs_password = document.getElementById('newVfsPassword').value;
+      const vfs_email_secondary = document.getElementById('newVfsEmailSec').value.trim();
+      const vfs_password_secondary = document.getElementById('newVfsPasswordSec').value;
+      const email_provider = document.getElementById('newEmailProvider').value;
+      const otp_email = document.getElementById('newOtpEmail').value.trim();
+      const otp_app_password = document.getElementById('newOtpAppPwd').value;
+      const telegram_chat_id = document.getElementById('newTelegramChatId').value.trim();
+      const telegram_bot_token = document.getElementById('newTelegramBotToken').value.trim();
+
+      const btn = document.getElementById('btnSaveUser');
       btn.disabled = true;
-      btn.textContent = 'Saving...';
+      btn.textContent = 'Saving User & Credentials...';
 
       try {
         const res = await fetch('/api/admin/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, full_name: fullName, email, password, role })
+          body: JSON.stringify({
+            username, full_name: fullName, email, password, role,
+            vfs_email, vfs_password, vfs_email_secondary, vfs_password_secondary,
+            email_provider, otp_email, otp_app_password,
+            telegram_chat_id, telegram_bot_token
+          })
         });
         const data = await res.json();
         if (data.success) {
-          alert('User created successfully.');
+          alert('User and credentials created successfully.');
           closeCreateUserModal();
           fetchUsers();
           fetchStats();
@@ -1546,7 +1833,156 @@ pm2 save</pre>
         alert('Network error creating user.');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Create User';
+        btn.textContent = 'Create User & Save Credentials';
+      }
+    }
+
+    function openEditUserModalById(userId) {
+      const u = _adminUsersCache.find(x => x.id === userId);
+      if (!u) {
+        alert("User record not found in cache. Refreshing...");
+        fetchUsers();
+        return;
+      }
+
+      document.getElementById('editUserId').value = u.id;
+      document.getElementById('editUsername').value = u.username || '';
+      document.getElementById('editFullName').value = u.full_name || '';
+      document.getElementById('editEmail').value = u.email || '';
+      document.getElementById('editPassword').value = '';
+      document.getElementById('editRole').value = u.role || 'user';
+      document.getElementById('editStatus').value = u.status || 'active';
+
+      document.getElementById('editVfsEmail').value = u.vfs_email || '';
+      document.getElementById('editVfsPassword').value = u.vfs_password || '';
+      document.getElementById('editVfsEmailSec').value = u.vfs_email_secondary || '';
+      document.getElementById('editVfsPasswordSec').value = u.vfs_password_secondary || '';
+
+      document.getElementById('editEmailProvider').value = (u.email_provider || 'gmail').toLowerCase();
+      document.getElementById('editOtpEmail').value = u.otp_email || '';
+      document.getElementById('editOtpAppPwd').value = u.otp_app_password || '';
+
+      document.getElementById('editTelegramChatId').value = u.telegram_chat_id || '';
+      document.getElementById('editTelegramBotToken').value = u.telegram_bot_token || '';
+      document.getElementById('editTgAlerts').checked = u.telegram_notifications !== 0;
+      document.getElementById('editEmailAlerts').checked = u.email_notifications !== 0;
+
+      const fb = document.getElementById('modalImapFeedback');
+      fb.style.display = 'none';
+
+      document.getElementById('editUserModal').style.display = 'flex';
+      document.getElementById('editFullName').focus();
+    }
+
+    function closeEditUserModal() {
+      document.getElementById('editUserModal').style.display = 'none';
+    }
+
+    async function handleEditUserSubmit(e) {
+      e.preventDefault();
+      const userId = document.getElementById('editUserId').value;
+      const username = document.getElementById('editUsername').value.trim();
+      const fullName = document.getElementById('editFullName').value.trim();
+      const email = document.getElementById('editEmail').value.trim();
+      const password = document.getElementById('editPassword').value;
+      const role = document.getElementById('editRole').value;
+      const status = document.getElementById('editStatus').value;
+
+      const vfs_email = document.getElementById('editVfsEmail').value.trim();
+      const vfs_password = document.getElementById('editVfsPassword').value;
+      const vfs_email_secondary = document.getElementById('editVfsEmailSec').value.trim();
+      const vfs_password_secondary = document.getElementById('editVfsPasswordSec').value;
+
+      const email_provider = document.getElementById('editEmailProvider').value;
+      const otp_email = document.getElementById('editOtpEmail').value.trim();
+      const otp_app_password = document.getElementById('editOtpAppPwd').value;
+
+      const telegram_chat_id = document.getElementById('editTelegramChatId').value.trim();
+      const telegram_bot_token = document.getElementById('editTelegramBotToken').value.trim();
+      const telegram_notifications = document.getElementById('editTgAlerts').checked;
+      const email_notifications = document.getElementById('editEmailAlerts').checked;
+
+      const btn = document.getElementById('btnUpdateUser');
+      btn.disabled = true;
+      btn.textContent = 'Saving Changes...';
+
+      const payload = {
+        username, full_name: fullName, email, role, status,
+        vfs_email, vfs_password, vfs_email_secondary, vfs_password_secondary,
+        email_provider, otp_email, otp_app_password,
+        telegram_chat_id, telegram_bot_token,
+        telegram_notifications, email_notifications
+      };
+      if (password) {
+        payload.password = password;
+      }
+
+      try {
+        const res = await fetch(`/api/admin/users/${userId}/full`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('User profile and credentials updated successfully.');
+          closeEditUserModal();
+          fetchUsers();
+          fetchStats();
+        } else {
+          alert('Error: ' + data.message);
+        }
+      } catch (err) {
+        alert('Network error saving user changes.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
+      }
+    }
+
+    async function testModalUserImap() {
+      const provider = document.getElementById('editEmailProvider').value;
+      const email = document.getElementById('editOtpEmail').value.trim();
+      const app_password = document.getElementById('editOtpAppPwd').value;
+      const fb = document.getElementById('modalImapFeedback');
+
+      if (!email || !app_password) {
+        fb.style.display = 'block';
+        fb.style.background = 'rgba(239, 68, 68, 0.15)';
+        fb.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+        fb.style.color = '#fca5a5';
+        fb.textContent = 'Please enter both OTP Mailbox Email and Password before testing.';
+        return;
+      }
+
+      fb.style.display = 'block';
+      fb.style.background = 'rgba(56, 189, 248, 0.15)';
+      fb.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+      fb.style.color = '#7dd3fc';
+      fb.textContent = `Connecting to ${provider.toUpperCase()} IMAP server (SSL:993)...`;
+
+      try {
+        const res = await fetch('/api/test_imap_otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider, email, app_password })
+        });
+        const data = await res.json();
+        if (data.success) {
+          fb.style.background = 'rgba(16, 185, 129, 0.15)';
+          fb.style.border = '1px solid rgba(16, 185, 129, 0.35)';
+          fb.style.color = '#6ee7b7';
+          fb.textContent = `✅ ${data.message}`;
+        } else {
+          fb.style.background = 'rgba(239, 68, 68, 0.15)';
+          fb.style.border = '1px solid rgba(239, 68, 68, 0.35)';
+          fb.style.color = '#fca5a5';
+          fb.textContent = `❌ ${data.message}`;
+        }
+      } catch (e) {
+        fb.style.background = 'rgba(239, 68, 68, 0.15)';
+        fb.style.color = '#fca5a5';
+        fb.textContent = 'Network error testing IMAP connection.';
       }
     }
 

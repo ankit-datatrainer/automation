@@ -137,9 +137,11 @@ def send_email_alert(
     html_content: str,
     screenshot_path: Optional[str] = None,
     from_user: Optional[str] = None,
-    from_password: Optional[str] = None
+    from_password: Optional[str] = None,
+    smtp_host: Optional[str] = None,
+    smtp_port: Optional[int] = None
 ) -> Tuple[bool, str]:
-    """Send rich HTML email alert with optional inline screenshot."""
+    """Send rich HTML email alert with optional inline screenshot via Gmail or Hostinger SMTP."""
     if not to_email or "@" not in to_email:
         return False, "A valid recipient email address is required."
 
@@ -147,9 +149,21 @@ def send_email_alert(
     pwd = from_password if from_password is not None else cfg.VFS_GMAIL_APP_PASSWORD
 
     if not user or not pwd:
-        return False, "Email sender credentials not configured in .env (VFS_GMAIL_USER & VFS_GMAIL_APP_PASSWORD)."
+        return False, "Email sender credentials not configured in database or environment."
 
     clean_pwd = pwd.replace(" ", "")
+
+    # Auto-detect SMTP host and port if not specified
+    if not smtp_host:
+        if "hostinger" in user.lower() or "hostinger" in str(smtp_host or "").lower():
+            host = "smtp.hostinger.com"
+            port = smtp_port or 465
+        else:
+            host = "smtp.gmail.com"
+            port = smtp_port or 465
+    else:
+        host = smtp_host.strip()
+        port = int(smtp_port) if smtp_port else (465 if "465" in str(smtp_port) else 465)
 
     msg = MIMEMultipart("related")
     msg["From"] = f"VFS Global Slot Alert <{user}>"
@@ -178,14 +192,19 @@ def send_email_alert(
             log.debug(f"Could not attach screenshot to email: {e}")
 
     try:
-        # Connect to Gmail SMTP over SSL (Port 465)
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
-            server.login(user, clean_pwd)
-            server.send_message(msg)
-        log.info(f"Alert email sent successfully to {to_email}")
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, timeout=15) as server:
+                server.login(user, clean_pwd)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(host, port, timeout=15) as server:
+                server.starttls()
+                server.login(user, clean_pwd)
+                server.send_message(msg)
+        log.info(f"Alert email sent successfully to {to_email} via {host}:{port}")
         return True, f"Email sent successfully to {to_email}"
     except Exception as e:
-        log.error(f"Email send error to {to_email}: {e}")
+        log.error(f"Email send error to {to_email} via {host}:{port}: {e}")
         return False, str(e)
 
 

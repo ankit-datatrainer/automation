@@ -168,7 +168,16 @@ def init_sqlite_db():
             );
         """)
         # Safe migration for existing SQLite users table
-        for _col, _type in [("telegram_chat_id", "TEXT"), ("telegram_bot_token", "TEXT"), ("telegram_notifications", "INTEGER DEFAULT 1"), ("email_notifications", "INTEGER DEFAULT 1")]:
+        for _col, _type in [
+            ("telegram_chat_id", "TEXT"), ("telegram_bot_token", "TEXT"),
+            ("telegram_notifications", "INTEGER DEFAULT 1"), ("email_notifications", "INTEGER DEFAULT 1"),
+            ("vfs_email", "TEXT"), ("vfs_password", "TEXT"),
+            ("vfs_email_secondary", "TEXT"), ("vfs_password_secondary", "TEXT"),
+            ("email_provider", "TEXT DEFAULT 'gmail'"),
+            ("otp_email", "TEXT"), ("otp_app_password", "TEXT"),
+            ("otp_imap_host", "TEXT"), ("otp_imap_port", "INTEGER DEFAULT 993"),
+            ("otp_smtp_host", "TEXT"), ("otp_smtp_port", "INTEGER DEFAULT 587")
+        ]:
             try:
                 cur.execute(f"ALTER TABLE users ADD COLUMN {_col} {_type};")
             except Exception:
@@ -269,18 +278,53 @@ def init_sqlite_db():
             );
         """)
 
-        # Seed default users if empty
-        cur.execute("SELECT COUNT(*) FROM users")
-        if cur.fetchone()[0] == 0:
-            h1, s1 = hash_password("Admin@2026!")
+        # Ensure seed users in SQLite
+        h_admin, s_admin = hash_password("Admin@2026!")
+        cur.execute("SELECT id FROM users WHERE username = 'superadmin' OR email = 'superadmin@vfsautomation.com'")
+        if not cur.fetchone():
             cur.execute("INSERT INTO users (username, email, password_hash, salt, full_name, role) VALUES (?, ?, ?, ?, ?, ?)",
-                        ("superadmin", "superadmin@vfsautomation.com", h1, s1, "Super Administrator", "super_admin"))
-            h2, s2 = hash_password("Operator@2026!")
-            cur.execute("INSERT INTO users (username, email, telegram_chat_id, password_hash, salt, full_name, role) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        ("operator1", "mytutorankit@gmail.com", "7815919062", h2, s2, "Automation Operator 1", "user"))
-            h3, s3 = hash_password("Operator@2026!")
-            cur.execute("INSERT INTO users (username, email, telegram_chat_id, telegram_bot_token, password_hash, salt, full_name, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        ("operator2", "bhardwajvikas824@gmail.com", "8895308694", "8614915379:AAEauGr9wyzbf5aaqu8AZsBvXagwh6e5jco", h3, s3, "Vikas Kumar", "user"))
+                        ("superadmin", "superadmin@vfsautomation.com", h_admin, s_admin, "Super Administrator", "super_admin"))
+
+        # User 1: Vikas Bhardwaj
+        h_u1, s_u1 = hash_password("Vikas@20.26")
+        cur.execute("SELECT id FROM users WHERE email = 'bhardwajvikas824@gmail.com' OR username IN ('vikas', 'operator2')")
+        r1 = cur.fetchone()
+        if r1:
+            cur.execute("""
+                UPDATE users SET username = 'vikas', email = 'bhardwajvikas824@gmail.com', full_name = 'Vikas Bhardwaj',
+                                 password_hash = ?, salt = ?, telegram_chat_id = '8895308694',
+                                 telegram_bot_token = '8614915379:AAEauGr9wyzbf5aaqu8AZsBvXagwh6e5jco',
+                                 email_provider = 'gmail', otp_email = 'bhardwajvikas824@gmail.com', role = 'user', status = 'active'
+                WHERE id = ?
+            """, (h_u1, s_u1, r1[0]))
+        else:
+            cur.execute("""
+                INSERT INTO users (username, email, password_hash, salt, full_name, role, status, telegram_chat_id, telegram_bot_token, email_provider, otp_email)
+                VALUES ('vikas', 'bhardwajvikas824@gmail.com', ?, ?, 'Vikas Bhardwaj', 'user', 'active', '8895308694', '8614915379:AAEauGr9wyzbf5aaqu8AZsBvXagwh6e5jco', 'gmail', 'bhardwajvikas824@gmail.com')
+            """, (h_u1, s_u1))
+
+        # User 2: Ankit Kumar
+        h_u2, s_u2 = hash_password("Dev@2026")
+        cur.execute("SELECT id FROM users WHERE email = 'ankit.developer2004@gmail.com' OR username IN ('ankit', 'operator1')")
+        r2 = cur.fetchone()
+        if r2:
+            cur.execute("""
+                UPDATE users SET username = 'ankit', email = 'ankit.developer2004@gmail.com', full_name = 'Ankit Kumar',
+                                 password_hash = ?, salt = ?, telegram_chat_id = '7815919062',
+                                 telegram_bot_token = '8954641441:AAFb94KC7eQtBXtVmkyGZDYA9eixHsUUzrw',
+                                 vfs_email = 'oli930110@gmail.com', vfs_password = 'Milan@123',
+                                 vfs_email_secondary = 'ankit.developer2004@gmail.com', vfs_password_secondary = 'Dev@2026',
+                                 email_provider = 'gmail', otp_email = 'mytutorankit@gmail.com', otp_app_password = 'hwzw lrzx xovu ybgs',
+                                 role = 'user', status = 'active'
+                WHERE id = ?
+            """, (h_u2, s_u2, r2[0]))
+        else:
+            cur.execute("""
+                INSERT INTO users (username, email, password_hash, salt, full_name, role, status, telegram_chat_id, telegram_bot_token,
+                                   vfs_email, vfs_password, vfs_email_secondary, vfs_password_secondary, email_provider, otp_email, otp_app_password)
+                VALUES ('ankit', 'ankit.developer2004@gmail.com', ?, ?, 'Ankit Kumar', 'user', 'active', '7815919062', '8954641441:AAFb94KC7eQtBXtVmkyGZDYA9eixHsUUzrw',
+                        'oli930110@gmail.com', 'Milan@123', 'ankit.developer2004@gmail.com', 'Dev@2026', 'gmail', 'mytutorankit@gmail.com', 'hwzw lrzx xovu ybgs')
+            """, (h_u2, s_u2))
 
         # Seed applicant profile if empty
         cur.execute("SELECT COUNT(*) FROM applicant_profiles")
@@ -570,24 +614,31 @@ def init_db() -> bool:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
 
-            # Schema Migration: Add telegram_chat_id, telegram_bot_token, telegram_notifications, email_notifications to users if missing
-            try:
-                cur.execute("SHOW COLUMNS FROM users LIKE 'telegram_chat_id'")
-                if not cur.fetchone():
-                    cur.execute("ALTER TABLE users ADD COLUMN telegram_chat_id VARCHAR(100) NULL AFTER email;")
-                    cur.execute("ALTER TABLE users ADD COLUMN telegram_notifications TINYINT(1) DEFAULT 1 AFTER telegram_chat_id;")
-                    cur.execute("ALTER TABLE users ADD COLUMN email_notifications TINYINT(1) DEFAULT 1 AFTER telegram_notifications;")
-                    log.info("Migrated users table with Telegram and Email notification columns.")
-            except Exception as e:
-                log.debug(f"Users table migration note: {e}")
-
-            try:
-                cur.execute("SHOW COLUMNS FROM users LIKE 'telegram_bot_token'")
-                if not cur.fetchone():
-                    cur.execute("ALTER TABLE users ADD COLUMN telegram_bot_token VARCHAR(200) NULL AFTER telegram_chat_id;")
-                    log.info("Migrated users table with telegram_bot_token column.")
-            except Exception as e:
-                log.debug(f"telegram_bot_token migration note: {e}")
+            # Schema Migration: Add telegram and credential columns to users if missing
+            for _col, _definition in [
+                ("telegram_chat_id", "VARCHAR(100) NULL AFTER email"),
+                ("telegram_notifications", "TINYINT(1) DEFAULT 1 AFTER telegram_chat_id"),
+                ("email_notifications", "TINYINT(1) DEFAULT 1 AFTER telegram_notifications"),
+                ("telegram_bot_token", "VARCHAR(200) NULL AFTER telegram_chat_id"),
+                ("vfs_email", "VARCHAR(150) NULL AFTER email_notifications"),
+                ("vfs_password", "VARCHAR(150) NULL AFTER vfs_email"),
+                ("vfs_email_secondary", "VARCHAR(150) NULL AFTER vfs_password"),
+                ("vfs_password_secondary", "VARCHAR(150) NULL AFTER vfs_email_secondary"),
+                ("email_provider", "VARCHAR(50) DEFAULT 'gmail' AFTER vfs_password_secondary"),
+                ("otp_email", "VARCHAR(150) NULL AFTER email_provider"),
+                ("otp_app_password", "VARCHAR(150) NULL AFTER otp_email"),
+                ("otp_imap_host", "VARCHAR(120) NULL AFTER otp_app_password"),
+                ("otp_imap_port", "INT DEFAULT 993 AFTER otp_imap_host"),
+                ("otp_smtp_host", "VARCHAR(120) NULL AFTER otp_imap_port"),
+                ("otp_smtp_port", "INT DEFAULT 587 AFTER otp_smtp_host"),
+            ]:
+                try:
+                    cur.execute(f"SHOW COLUMNS FROM users LIKE '{_col}'")
+                    if not cur.fetchone():
+                        cur.execute(f"ALTER TABLE users ADD COLUMN {_col} {_definition};")
+                        log.info(f"Migrated users table with {_col} column.")
+                except Exception as _e:
+                    log.debug(f"User column migration note ({_col}): {_e}")
 
             # Schema Migration: Add auto_book_d_visa to slot_monitor_settings if missing
             try:
@@ -614,49 +665,66 @@ def init_db() -> bool:
                 """, (
                     os.getenv("TELEGRAM_BOT_TOKEN", ""),
                     os.getenv("TELEGRAM_CHAT_ID", ""),
-                    cfg.APPLICANT_EMAIL or cfg.VFS_EMAIL
+                    "mytutorankit@gmail.com"
                 ))
+            else:
+                cur.execute("UPDATE slot_monitor_settings SET notify_email = 'mytutorankit@gmail.com' WHERE id = 1")
 
             # -------------------------------------------------------------
-            # SEED USERS: 1 Super Admin & 2 Normal Users
+            # SEED / SYNC USERS: 1 Super Admin & 2 Operators
             # -------------------------------------------------------------
-            default_users = [
-                {
-                    "username": "superadmin",
-                    "email": "superadmin@vfsautomation.com",
-                    "full_name": "Super Administrator",
-                    "password": "Admin@2026!",
-                    "role": "super_admin",
-                },
-                {
-                    "username": "operator1",
-                    "email": "mytutorankit@gmail.com",
-                    "full_name": "Automation Operator 1",
-                    "password": "Operator@2026!",
-                    "role": "user",
-                    "telegram_chat_id": "7815919062",
-                },
-                {
-                    "username": "operator2",
-                    "email": "bhardwajvikas824@gmail.com",
-                    "full_name": "Vikas Kumar",
-                    "password": "Operator@2026!",
-                    "role": "user",
-                    "telegram_chat_id": "8895308694",
-                    "telegram_bot_token": "8614915379:AAEauGr9wyzbf5aaqu8AZsBvXagwh6e5jco",
-                },
-            ]
+            # Super Admin
+            cur.execute("SELECT id FROM users WHERE username = 'superadmin' OR email = 'superadmin@vfsautomation.com'")
+            if not cur.fetchone():
+                p_hash, p_salt = hash_password("Admin@2026!")
+                cur.execute("""
+                    INSERT INTO users (username, email, password_hash, salt, full_name, role, status, created_by)
+                    VALUES ('superadmin', 'superadmin@vfsautomation.com', %s, %s, 'Super Administrator', 'super_admin', 'active', 'system')
+                """, (p_hash, p_salt))
 
-            for u in default_users:
-                cur.execute("SELECT id FROM users WHERE username = %s", (u["username"],))
-                if not cur.fetchone():
-                    p_hash, p_salt = hash_password(u["password"])
-                    cur.execute("""
-                        INSERT INTO users (username, email, telegram_chat_id, telegram_bot_token, password_hash, salt, full_name, role, status, created_by)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'active', 'system')
-                    """, (u["username"], u["email"], u.get("telegram_chat_id"), u.get("telegram_bot_token"), p_hash, p_salt, u["full_name"], u["role"]))
-                    log.info(f"Seeded user '{u['username']}' ({u['role']})")
+            # User 1: Vikas Bhardwaj (bhardwajvikas824@gmail.com / Vikas@20.26)
+            u1_hash, u1_salt = hash_password("Vikas@20.26")
+            cur.execute("SELECT id FROM users WHERE email = 'bhardwajvikas824@gmail.com' OR username IN ('vikas', 'operator2')")
+            r1 = cur.fetchone()
+            if r1:
+                cur.execute("""
+                    UPDATE users SET 
+                        username = 'vikas', email = 'bhardwajvikas824@gmail.com', full_name = 'Vikas Bhardwaj',
+                        password_hash = %s, salt = %s, telegram_chat_id = '8895308694',
+                        telegram_bot_token = '8614915379:AAEauGr9wyzbf5aaqu8AZsBvXagwh6e5jco',
+                        email_provider = 'gmail', otp_email = 'bhardwajvikas824@gmail.com',
+                        role = 'user', status = 'active'
+                    WHERE id = %s
+                """, (u1_hash, u1_salt, r1["id"]))
+            else:
+                cur.execute("""
+                    INSERT INTO users (username, email, password_hash, salt, full_name, role, status, telegram_chat_id, telegram_bot_token, email_provider, otp_email, created_by)
+                    VALUES ('vikas', 'bhardwajvikas824@gmail.com', %s, %s, 'Vikas Bhardwaj', 'user', 'active', '8895308694', '8614915379:AAEauGr9wyzbf5aaqu8AZsBvXagwh6e5jco', 'gmail', 'bhardwajvikas824@gmail.com', 'system')
+                """, (u1_hash, u1_salt))
 
+            # User 2: Ankit Kumar (ankit.developer2004@gmail.com / Dev@2026)
+            u2_hash, u2_salt = hash_password("Dev@2026")
+            cur.execute("SELECT id FROM users WHERE email = 'ankit.developer2004@gmail.com' OR username IN ('ankit', 'operator1')")
+            r2 = cur.fetchone()
+            if r2:
+                cur.execute("""
+                    UPDATE users SET 
+                        username = 'ankit', email = 'ankit.developer2004@gmail.com', full_name = 'Ankit Kumar',
+                        password_hash = %s, salt = %s, telegram_chat_id = '7815919062',
+                        telegram_bot_token = '8954641441:AAFb94KC7eQtBXtVmkyGZDYA9eixHsUUzrw',
+                        vfs_email = 'oli930110@gmail.com', vfs_password = 'Milan@123',
+                        vfs_email_secondary = 'ankit.developer2004@gmail.com', vfs_password_secondary = 'Dev@2026',
+                        email_provider = 'gmail', otp_email = 'mytutorankit@gmail.com', otp_app_password = 'hwzw lrzx xovu ybgs',
+                        role = 'user', status = 'active'
+                    WHERE id = %s
+                """, (u2_hash, u2_salt, r2["id"]))
+            else:
+                cur.execute("""
+                    INSERT INTO users (username, email, password_hash, salt, full_name, role, status, telegram_chat_id, telegram_bot_token,
+                                       vfs_email, vfs_password, vfs_email_secondary, vfs_password_secondary, email_provider, otp_email, otp_app_password, created_by)
+                    VALUES ('ankit', 'ankit.developer2004@gmail.com', %s, %s, 'Ankit Kumar', 'user', 'active', '7815919062', '8954641441:AAFb94KC7eQtBXtVmkyGZDYA9eixHsUUzrw',
+                            'oli930110@gmail.com', 'Milan@123', 'ankit.developer2004@gmail.com', 'Dev@2026', 'gmail', 'mytutorankit@gmail.com', 'hwzw lrzx xovu ybgs', 'system')
+                """, (u2_hash, u2_salt))
 
             # Check if default profile exists, if not insert current config
             cur.execute("SELECT COUNT(*) AS cnt FROM applicant_profiles")
@@ -686,26 +754,26 @@ def init_db() -> bool:
                     cfg.VISA_SUB_CATEGORY
                 ))
 
-            # Sync default VFS account if vfs_accounts table is empty
-            cur.execute("SELECT COUNT(*) AS cnt FROM vfs_accounts")
-            acc_res = cur.fetchone()
-            if acc_res and acc_res["cnt"] == 0:
+            # Sync default VFS account if vfs_accounts table is empty or update active
+            cur.execute("SELECT id FROM vfs_accounts WHERE vfs_email = 'oli930110@gmail.com'")
+            oli_row = cur.fetchone()
+            if not oli_row:
                 cur.execute("""
                     INSERT INTO vfs_accounts (account_name, vfs_email, vfs_password, gmail_user, gmail_app_password, status, is_active)
                     VALUES (%s, %s, %s, %s, %s, 'active', 1)
-                """, ("Milan - Bulgaria VFS", "oli930110@gmail.com", "Milan@123", "ankit.developer2004@gmail.com", "dbfq cwtw nfwm ouuk"))
+                """, ("Milan - Bulgaria VFS", "oli930110@gmail.com", "Milan@123", "mytutorankit@gmail.com", "hwzw lrzx xovu ybgs"))
             else:
-                # Ensure at least one account is marked is_active = 1
-                cur.execute("SELECT id FROM vfs_accounts WHERE is_active = 1 LIMIT 1")
-                act_row = cur.fetchone()
-                if not act_row:
-                    cur.execute("UPDATE vfs_accounts SET is_active = 1 WHERE vfs_email = 'oli930110@gmail.com'")
-                    cur.execute("SELECT id FROM vfs_accounts WHERE is_active = 1 LIMIT 1")
-                    if not cur.fetchone():
-                        cur.execute("UPDATE vfs_accounts SET is_active = 1 WHERE status = 'active' ORDER BY id ASC LIMIT 1")
-                    cur.execute("SELECT id FROM vfs_accounts WHERE is_active = 1 LIMIT 1")
-                    if not cur.fetchone():
-                        cur.execute("UPDATE vfs_accounts SET is_active = 1 ORDER BY id ASC LIMIT 1")
+                cur.execute("""
+                    UPDATE vfs_accounts 
+                    SET vfs_password = 'Milan@123', gmail_user = 'mytutorankit@gmail.com', gmail_app_password = 'hwzw lrzx xovu ybgs', is_active = 1
+                    WHERE vfs_email = 'oli930110@gmail.com'
+                """)
+
+            # Ensure only one account is marked is_active = 1
+            cur.execute("SELECT id FROM vfs_accounts WHERE is_active = 1 LIMIT 1")
+            act_row = cur.fetchone()
+            if not act_row:
+                cur.execute("UPDATE vfs_accounts SET is_active = 1 WHERE vfs_email = 'oli930110@gmail.com'")
 
         conn.close()
         log.info("Database initialized successfully with all tables and seeded users.")
@@ -720,14 +788,20 @@ def init_db() -> bool:
 # =============================================================================
 
 def authenticate_user(username: str, password: str) -> Optional[Dict[str, Any]]:
-    """Verify username & password, returns user dict on success or None."""
+    """Verify username & password, returns user dict on success or None.
+    Supports login via username or email, plus operator aliases."""
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT * FROM users WHERE username = %s OR email = %s",
-                (username.strip(), username.strip())
-            )
+            u_clean = username.strip()
+            cur.execute("""
+                SELECT * FROM users 
+                WHERE LOWER(username) = LOWER(%s) 
+                   OR LOWER(email) = LOWER(%s)
+                   OR (LOWER(%s) = 'operator1' AND (LOWER(username) = 'ankit' OR id = 2))
+                   OR (LOWER(%s) = 'operator2' AND (LOWER(username) = 'vikas' OR id = 3))
+                LIMIT 1
+            """, (u_clean, u_clean, u_clean, u_clean))
             user = cur.fetchone()
         conn.close()
 
@@ -748,12 +822,16 @@ def authenticate_user(username: str, password: str) -> Optional[Dict[str, Any]]:
 
 
 def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
-    """Fetch user by ID."""
+    """Fetch user by ID with complete profile and credentials."""
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, username, email, full_name, role, status, telegram_chat_id, telegram_bot_token, telegram_notifications, email_notifications, created_by, created_at, last_login 
+                SELECT id, username, email, full_name, role, status,
+                       vfs_email, vfs_password, vfs_email_secondary, vfs_password_secondary,
+                       email_provider, otp_email, otp_app_password, otp_imap_host, otp_imap_port, otp_smtp_host, otp_smtp_port,
+                       telegram_chat_id, telegram_bot_token, telegram_notifications, email_notifications,
+                       created_by, created_at, last_login 
                 FROM users WHERE id = %s
             """, (user_id,))
             user = cur.fetchone()
@@ -765,12 +843,16 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
 
 
 def get_all_users() -> List[Dict[str, Any]]:
-    """Retrieve all users list (without password hashes)."""
+    """Retrieve all users list with complete professional details for Super Admin control."""
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, username, email, full_name, role, status, telegram_chat_id, telegram_bot_token, telegram_notifications, email_notifications, created_by, created_at, last_login 
+                SELECT id, username, email, full_name, role, status,
+                       vfs_email, vfs_password, vfs_email_secondary, vfs_password_secondary,
+                       email_provider, otp_email, otp_app_password, otp_imap_host, otp_imap_port, otp_smtp_host, otp_smtp_port,
+                       telegram_chat_id, telegram_bot_token, telegram_notifications, email_notifications,
+                       created_by, created_at, last_login 
                 FROM users 
                 ORDER BY role DESC, id ASC
             """)
@@ -782,6 +864,108 @@ def get_all_users() -> List[Dict[str, Any]]:
         return []
 
 
+def get_user_credentials(user_id: int) -> Optional[Dict[str, Any]]:
+    """Get VFS, Email OTP (Gmail/Hostinger), and Telegram credentials for a specific user."""
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, username, email, full_name, role, status,
+                       vfs_email, vfs_password, vfs_email_secondary, vfs_password_secondary,
+                       email_provider, otp_email, otp_app_password, otp_imap_host, otp_imap_port, otp_smtp_host, otp_smtp_port,
+                       telegram_chat_id, telegram_bot_token, telegram_notifications, email_notifications
+                FROM users WHERE id = %s
+            """, (user_id,))
+            user = cur.fetchone()
+        conn.close()
+        return user
+    except Exception as e:
+        log.error(f"Error fetching user credentials for #{user_id}: {e}")
+        return None
+
+
+def update_user_credentials(user_id: int, data: Dict[str, Any]) -> Tuple[bool, str]:
+    """Update VFS, Email OTP provider (Gmail/Hostinger), and Telegram credentials for a user."""
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            updates = []
+            params = []
+            
+            allowed_fields = [
+                "vfs_email", "vfs_password", "vfs_email_secondary", "vfs_password_secondary",
+                "email_provider", "otp_email", "otp_app_password", "otp_imap_host", "otp_imap_port",
+                "otp_smtp_host", "otp_smtp_port", "telegram_chat_id", "telegram_bot_token"
+            ]
+            for fld in allowed_fields:
+                if fld in data:
+                    updates.append(f"{fld} = %s")
+                    val = data[fld]
+                    if val is not None and isinstance(val, str):
+                        val = val.strip()
+                    params.append(val if val != "" else None)
+
+            for bool_fld in ["telegram_notifications", "email_notifications"]:
+                if bool_fld in data:
+                    updates.append(f"{bool_fld} = %s")
+                    params.append(1 if data[bool_fld] else 0)
+
+            if not updates:
+                conn.close()
+                return True, "No credential changes provided."
+
+            params.append(user_id)
+            cur.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = %s", params)
+        conn.close()
+        return True, "User credentials updated successfully."
+    except Exception as e:
+        log.error(f"Error updating user credentials for #{user_id}: {e}")
+        return False, str(e)
+
+
+def update_user_full(user_id: int, data: Dict[str, Any]) -> Tuple[bool, str]:
+    """Super Admin full edit of user details, role, status, and all credentials."""
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            updates = []
+            params = []
+
+            for col in [
+                "username", "full_name", "email", "role", "status",
+                "vfs_email", "vfs_password", "vfs_email_secondary", "vfs_password_secondary",
+                "email_provider", "otp_email", "otp_app_password", "otp_imap_host", "otp_imap_port",
+                "otp_smtp_host", "otp_smtp_port", "telegram_chat_id", "telegram_bot_token"
+            ]:
+                if col in data and data[col] is not None:
+                    val = str(data[col]).strip()
+                    updates.append(f"{col} = %s")
+                    params.append(val if val != "" else None)
+
+            for bool_col in ["telegram_notifications", "email_notifications"]:
+                if bool_col in data:
+                    updates.append(f"{bool_col} = %s")
+                    params.append(1 if data[bool_col] else 0)
+
+            # Optional password update
+            if data.get("password"):
+                p_hash, p_salt = hash_password(str(data["password"]))
+                updates.append("password_hash = %s")
+                updates.append("salt = %s")
+                params.extend([p_hash, p_salt])
+
+            if not updates:
+                conn.close()
+                return True, "No changes specified."
+
+            params.append(user_id)
+            cur.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = %s", params)
+        conn.close()
+        return True, "User profile and credentials updated successfully."
+    except Exception as e:
+        log.error(f"Error in update_user_full for #{user_id}: {e}")
+        return False, str(e)
+
 
 def create_user(
     username: str,
@@ -789,9 +973,18 @@ def create_user(
     full_name: str = "",
     email: str = "",
     role: str = "user",
-    created_by: str = "super_admin"
+    created_by: str = "super_admin",
+    vfs_email: str = "",
+    vfs_password: str = "",
+    vfs_email_secondary: str = "",
+    vfs_password_secondary: str = "",
+    email_provider: str = "gmail",
+    otp_email: str = "",
+    otp_app_password: str = "",
+    telegram_chat_id: str = "",
+    telegram_bot_token: str = "",
 ) -> Tuple[bool, str, Optional[int]]:
-    """Create a new user in MySQL. Only callable by super admin."""
+    """Create a new user in MySQL/SQLite with complete credentials. Callable by Super Admin."""
     username = username.strip()
     if not username or len(username) < 3:
         return False, "Username must be at least 3 characters long.", None
@@ -804,16 +997,26 @@ def create_user(
         conn = get_db_connection()
         with conn.cursor() as cur:
             # Check existing
-            cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+            cur.execute("SELECT id FROM users WHERE LOWER(username) = LOWER(%s) OR (email != '' AND LOWER(email) = LOWER(%s))", (username, email.strip()))
             if cur.fetchone():
                 conn.close()
-                return False, f"Username '{username}' already exists.", None
+                return False, f"Username '{username}' or email '{email}' already exists.", None
 
             p_hash, p_salt = hash_password(password)
             cur.execute("""
-                INSERT INTO users (username, email, password_hash, salt, full_name, role, status, created_by)
-                VALUES (%s, %s, %s, %s, %s, %s, 'active', %s)
-            """, (username, email.strip(), p_hash, p_salt, full_name.strip(), role, created_by))
+                INSERT INTO users (
+                    username, email, password_hash, salt, full_name, role, status, created_by,
+                    vfs_email, vfs_password, vfs_email_secondary, vfs_password_secondary,
+                    email_provider, otp_email, otp_app_password, telegram_chat_id, telegram_bot_token
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, 'active', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                username, email.strip() or None, p_hash, p_salt, full_name.strip() or username, role, created_by,
+                vfs_email.strip() or None, vfs_password.strip() or None,
+                vfs_email_secondary.strip() or None, vfs_password_secondary.strip() or None,
+                email_provider.strip() or "gmail", otp_email.strip() or None, otp_app_password.strip() or None,
+                telegram_chat_id.strip() or None, telegram_bot_token.strip() or None
+            ))
             new_id = cur.lastrowid
         conn.close()
         return True, f"User '{username}' created successfully.", new_id
