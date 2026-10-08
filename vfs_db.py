@@ -154,6 +154,7 @@ def init_sqlite_db():
                 username TEXT UNIQUE NOT NULL,
                 email TEXT,
                 telegram_chat_id TEXT,
+                telegram_bot_token TEXT,
                 telegram_notifications INTEGER DEFAULT 1,
                 email_notifications INTEGER DEFAULT 1,
                 password_hash TEXT NOT NULL,
@@ -166,6 +167,13 @@ def init_sqlite_db():
                 last_login TIMESTAMP
             );
         """)
+        # Safe migration for existing SQLite users table
+        for _col, _type in [("telegram_chat_id", "TEXT"), ("telegram_bot_token", "TEXT"), ("telegram_notifications", "INTEGER DEFAULT 1"), ("email_notifications", "INTEGER DEFAULT 1")]:
+            try:
+                cur.execute(f"ALTER TABLE users ADD COLUMN {_col} {_type};")
+            except Exception:
+                pass
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS applicant_profiles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -269,10 +277,10 @@ def init_sqlite_db():
                         ("superadmin", "superadmin@vfsautomation.com", h1, s1, "Super Administrator", "super_admin"))
             h2, s2 = hash_password("Operator@2026!")
             cur.execute("INSERT INTO users (username, email, telegram_chat_id, password_hash, salt, full_name, role) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        ("operator1", "operator1@vfsautomation.com", "7815919062", h2, s2, "Automation Operator 1", "user"))
+                        ("operator1", "mytutorankit@gmail.com", "7815919062", h2, s2, "Automation Operator 1", "user"))
             h3, s3 = hash_password("Operator@2026!")
-            cur.execute("INSERT INTO users (username, email, password_hash, salt, full_name, role) VALUES (?, ?, ?, ?, ?, ?)",
-                        ("operator2", "operator2@vfsautomation.com", h3, s3, "Automation Operator 2", "user"))
+            cur.execute("INSERT INTO users (username, email, telegram_chat_id, telegram_bot_token, password_hash, salt, full_name, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        ("operator2", "bhardwajvikas824@gmail.com", "8895308694", "8614915379:AAEauGr9wyzbf5aaqu8AZsBvXagwh6e5jco", h3, s3, "Vikas Kumar", "user"))
 
         # Seed applicant profile if empty
         cur.execute("SELECT COUNT(*) FROM applicant_profiles")
@@ -436,6 +444,10 @@ def init_db() -> bool:
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     username VARCHAR(50) UNIQUE NOT NULL,
                     email VARCHAR(120),
+                    telegram_chat_id VARCHAR(100) NULL,
+                    telegram_bot_token VARCHAR(200) NULL,
+                    telegram_notifications TINYINT(1) DEFAULT 1,
+                    email_notifications TINYINT(1) DEFAULT 1,
                     password_hash VARCHAR(255) NOT NULL,
                     salt VARCHAR(64) NOT NULL,
                     full_name VARCHAR(100),
@@ -558,7 +570,7 @@ def init_db() -> bool:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
 
-            # Schema Migration: Add telegram_chat_id, telegram_notifications, email_notifications to users if missing
+            # Schema Migration: Add telegram_chat_id, telegram_bot_token, telegram_notifications, email_notifications to users if missing
             try:
                 cur.execute("SHOW COLUMNS FROM users LIKE 'telegram_chat_id'")
                 if not cur.fetchone():
@@ -568,6 +580,14 @@ def init_db() -> bool:
                     log.info("Migrated users table with Telegram and Email notification columns.")
             except Exception as e:
                 log.debug(f"Users table migration note: {e}")
+
+            try:
+                cur.execute("SHOW COLUMNS FROM users LIKE 'telegram_bot_token'")
+                if not cur.fetchone():
+                    cur.execute("ALTER TABLE users ADD COLUMN telegram_bot_token VARCHAR(200) NULL AFTER telegram_chat_id;")
+                    log.info("Migrated users table with telegram_bot_token column.")
+            except Exception as e:
+                log.debug(f"telegram_bot_token migration note: {e}")
 
             # Schema Migration: Add auto_book_d_visa to slot_monitor_settings if missing
             try:
@@ -610,17 +630,20 @@ def init_db() -> bool:
                 },
                 {
                     "username": "operator1",
-                    "email": "operator1@vfsautomation.com",
+                    "email": "mytutorankit@gmail.com",
                     "full_name": "Automation Operator 1",
                     "password": "Operator@2026!",
                     "role": "user",
+                    "telegram_chat_id": "7815919062",
                 },
                 {
                     "username": "operator2",
-                    "email": "operator2@vfsautomation.com",
-                    "full_name": "Automation Operator 2",
+                    "email": "bhardwajvikas824@gmail.com",
+                    "full_name": "Vikas Kumar",
                     "password": "Operator@2026!",
                     "role": "user",
+                    "telegram_chat_id": "8895308694",
+                    "telegram_bot_token": "8614915379:AAEauGr9wyzbf5aaqu8AZsBvXagwh6e5jco",
                 },
             ]
 
@@ -629,10 +652,11 @@ def init_db() -> bool:
                 if not cur.fetchone():
                     p_hash, p_salt = hash_password(u["password"])
                     cur.execute("""
-                        INSERT INTO users (username, email, password_hash, salt, full_name, role, status, created_by)
-                        VALUES (%s, %s, %s, %s, %s, %s, 'active', 'system')
-                    """, (u["username"], u["email"], p_hash, p_salt, u["full_name"], u["role"]))
+                        INSERT INTO users (username, email, telegram_chat_id, telegram_bot_token, password_hash, salt, full_name, role, status, created_by)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'active', 'system')
+                    """, (u["username"], u["email"], u.get("telegram_chat_id"), u.get("telegram_bot_token"), p_hash, p_salt, u["full_name"], u["role"]))
                     log.info(f"Seeded user '{u['username']}' ({u['role']})")
+
 
             # Check if default profile exists, if not insert current config
             cur.execute("SELECT COUNT(*) AS cnt FROM applicant_profiles")
@@ -729,7 +753,7 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, username, email, full_name, role, status, telegram_chat_id, telegram_notifications, email_notifications, created_by, created_at, last_login 
+                SELECT id, username, email, full_name, role, status, telegram_chat_id, telegram_bot_token, telegram_notifications, email_notifications, created_by, created_at, last_login 
                 FROM users WHERE id = %s
             """, (user_id,))
             user = cur.fetchone()
@@ -746,7 +770,7 @@ def get_all_users() -> List[Dict[str, Any]]:
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, username, email, full_name, role, status, telegram_chat_id, telegram_notifications, email_notifications, created_by, created_at, last_login 
+                SELECT id, username, email, full_name, role, status, telegram_chat_id, telegram_bot_token, telegram_notifications, email_notifications, created_by, created_at, last_login 
                 FROM users 
                 ORDER BY role DESC, id ASC
             """)
@@ -756,6 +780,7 @@ def get_all_users() -> List[Dict[str, Any]]:
     except Exception as e:
         log.error(f"Error fetching users: {e}")
         return []
+
 
 
 def create_user(
@@ -1567,27 +1592,40 @@ def update_user_notifications(
     user_id: int,
     telegram_chat_id: str,
     telegram_notifications: bool = True,
-    email_notifications: bool = True
+    email_notifications: bool = True,
+    telegram_bot_token: Optional[str] = None,
+    email: Optional[str] = None
 ) -> Tuple[bool, str]:
-    """Update an operator's Telegram Chat ID and notification preferences."""
+    """Update an operator's Telegram Chat ID, custom Bot Token, email, and notification preferences."""
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE users 
-                SET telegram_chat_id = %s, telegram_notifications = %s, email_notifications = %s
-                WHERE id = %s
-            """, (
+            updates = [
+                "telegram_chat_id = %s",
+                "telegram_notifications = %s",
+                "email_notifications = %s"
+            ]
+            params: List[Any] = [
                 str(telegram_chat_id).strip() if telegram_chat_id else None,
                 1 if telegram_notifications else 0,
-                1 if email_notifications else 0,
-                user_id
-            ))
+                1 if email_notifications else 0
+            ]
+            if telegram_bot_token is not None:
+                updates.append("telegram_bot_token = %s")
+                params.append(str(telegram_bot_token).strip() if telegram_bot_token else None)
+            if email is not None:
+                updates.append("email = %s")
+                params.append(str(email).strip() if email else None)
+
+            params.append(user_id)
+            sql = f"UPDATE users SET {', '.join(updates)} WHERE id = %s"
+            cur.execute(sql, tuple(params))
         conn.close()
         return True, "User notification preferences updated successfully."
     except Exception as e:
         log.error(f"Error updating user #{user_id} notifications: {e}")
         return False, str(e)
+
 
 
 def get_database_stats() -> Dict[str, Any]:
@@ -1628,7 +1666,7 @@ def get_table_rows(table_name: str, limit: int = 100, offset: int = 0) -> List[D
             if table_name == "users":
                 # Include telegram_chat_id and notification flags
                 cur.execute(f"""
-                    SELECT id, username, email, full_name, role, status, telegram_chat_id, telegram_notifications, email_notifications, created_by, created_at, last_login 
+                    SELECT id, username, email, full_name, role, status, telegram_chat_id, telegram_bot_token, telegram_notifications, email_notifications, created_by, created_at, last_login 
                     FROM users ORDER BY id DESC LIMIT %s OFFSET %s
                 """, (limit, offset))
             else:

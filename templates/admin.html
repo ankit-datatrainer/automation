@@ -1205,16 +1205,22 @@ pm2 save</pre>
         <input type="hidden" id="tgUserId">
         <div class="admin-modal-body">
           <p style="color:#94a3b8; font-size:0.9rem; margin-bottom:1.25rem;">
-            Assign personal Telegram alerts for operator: <strong id="tgUsernameDisplay" style="color:#38bdf8;"></strong>
+            Configure alert preferences & personal Telegram credentials for operator: <strong id="tgUsernameDisplay" style="color:#38bdf8;"></strong>
           </p>
 
-          <div class="form-group" style="margin-bottom:1.25rem;">
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label class="form-label">Operator Email Address</label>
+            <input type="email" id="tgUserEmail" class="form-control" placeholder="e.g. bhardwajvikas824@gmail.com">
+            <small style="color:#64748b; font-size:0.75rem;">Email notifications will be delivered to this address.</small>
+          </div>
+
+          <div class="form-group" style="margin-bottom:1rem;">
             <label class="form-label" style="display:flex; justify-content:space-between;">
               <span>Telegram Chat ID *</span>
               <a href="https://t.me/userinfobot" target="_blank" style="color:#38bdf8; font-size:0.75rem; text-decoration:none;">Find via @userinfobot &rarr;</a>
             </label>
             <div style="display:flex; gap:0.5rem;">
-              <input type="text" id="tgUserChatId" class="form-control" placeholder="e.g. 123456789">
+              <input type="text" id="tgUserChatId" class="form-control" placeholder="e.g. 8895308694">
               <button type="button" class="btn btn-secondary" onclick="testOperatorTelegramPing()" style="white-space:nowrap;">
                 <span>🔔 Ping</span>
               </button>
@@ -1222,14 +1228,23 @@ pm2 save</pre>
             <small style="color:#64748b; font-size:0.75rem;">Enter the operator's personal Telegram Chat ID.</small>
           </div>
 
+          <div class="form-group" style="margin-bottom:1.25rem;">
+            <label class="form-label" style="display:flex; justify-content:space-between;">
+              <span>Custom Telegram Bot Token (Optional)</span>
+              <span style="color:#64748b; font-size:0.75rem;">Leave blank to use system bot</span>
+            </label>
+            <input type="text" id="tgUserBotToken" class="form-control" placeholder="e.g. 8614915379:AAEauGr9wyzbf5aaqu8AZsBvXagwh6e5jco">
+            <small style="color:#64748b; font-size:0.75rem;">If the operator uses their own Telegram bot (e.g. @vfsvikasbot), paste the Bot HTTP API token here.</small>
+          </div>
+
           <div style="background:rgba(15,23,42,0.5); padding:1rem; border-radius:10px; margin-bottom:1rem;">
             <label style="display:flex; align-items:center; gap:0.6rem; color:#e2e8f0; font-size:0.88rem; cursor:pointer; margin-bottom:0.75rem;">
               <input type="checkbox" id="tgUserNotifEnabled" checked style="width:18px; height:18px; accent-color:#38bdf8;">
-              <span>Send instant Telegram alert when <b>Long Stay D visa</b> is available</span>
+              <span>Send instant Telegram slot change alerts</span>
             </label>
             <label style="display:flex; align-items:center; gap:0.6rem; color:#e2e8f0; font-size:0.88rem; cursor:pointer;">
               <input type="checkbox" id="emUserNotifEnabled" checked style="width:18px; height:18px; accent-color:#f97316;">
-              <span>Send instant Email alert to operator's email</span>
+              <span>Send instant Email alerts to operator's email</span>
             </label>
           </div>
         </div>
@@ -1238,6 +1253,7 @@ pm2 save</pre>
           <button type="submit" class="btn btn-primary" id="btnSaveOperatorTelegram">Save Settings</button>
         </div>
       </form>
+
     </div>
   </div>
 
@@ -1449,7 +1465,7 @@ pm2 save</pre>
           const toggleAction = u.status === 'active' ? 'Deactivate' : 'Activate';
 
           const tgDisplay = u.telegram_chat_id 
-            ? `<span style="font-family:'JetBrains Mono'; font-size:0.75rem; color:#38bdf8; background:rgba(56,189,248,0.1); padding:2px 6px; border-radius:6px;">${escapeHtml(u.telegram_chat_id)}</span> ${u.telegram_notifications !== 0 ? '<span title="Instant Telegram alerts active">🔔</span>' : '<span title="Telegram alerts muted">🔕</span>'}`
+            ? `<span style="font-family:'JetBrains Mono'; font-size:0.75rem; color:#38bdf8; background:rgba(56,189,248,0.1); padding:2px 6px; border-radius:6px;">${escapeHtml(u.telegram_chat_id)}</span> ${u.telegram_bot_token ? '<span title="Personal Bot configured" style="font-size:0.75rem; color:#a855f7;">🤖</span>' : ''} ${u.telegram_notifications !== 0 ? '<span title="Instant Telegram alerts active">🔔</span>' : '<span title="Telegram alerts muted">🔕</span>'}`
             : '<span style="color:#64748b; font-size:0.8rem;">Not configured</span>';
 
           return `
@@ -1465,9 +1481,10 @@ pm2 save</pre>
               <td><span style="font-size:0.8rem; color:#64748b;">${u.created_at ? u.created_at.substring(0, 10) : '--'}</span></td>
               <td>
                 <div class="action-group">
-                  <button class="btn-act btn-user-telegram" onclick="openUserTelegramModal(${u.id}, '${escapeHtml(u.username)}', '${escapeHtml(u.telegram_chat_id || '')}', ${u.telegram_notifications !== 0}, ${u.email_notifications !== 0})" title="Configure Telegram for this operator">
+                  <button class="btn-act btn-user-telegram" onclick="openUserTelegramModal(${u.id}, '${escapeHtml(u.username)}', '${escapeHtml(u.email || '')}', '${escapeHtml(u.telegram_chat_id || '')}', '${escapeHtml(u.telegram_bot_token || '')}', ${u.telegram_notifications !== 0}, ${u.email_notifications !== 0})" title="Configure Telegram & Alerts for this operator">
                     📱 Telegram
                   </button>
+
                   <button class="btn-act" onclick="toggleUserStatus(${u.id}, '${u.status}')" title="${toggleAction} Account">
                     ${u.status === 'active' ? '⏸️ Suspend' : '▶️ Activate'}
                   </button>
@@ -1694,10 +1711,12 @@ pm2 save</pre>
     // =========================================================================
     // OPERATOR TELEGRAM MODAL & ACTIONS
     // =========================================================================
-    function openUserTelegramModal(userId, username, chatId, tgNotif, emNotif) {
+    function openUserTelegramModal(userId, username, email, chatId, botToken, tgNotif, emNotif) {
       document.getElementById('tgUserId').value = userId;
       document.getElementById('tgUsernameDisplay').textContent = username;
+      document.getElementById('tgUserEmail').value = email || '';
       document.getElementById('tgUserChatId').value = chatId || '';
+      document.getElementById('tgUserBotToken').value = botToken || '';
       document.getElementById('tgUserNotifEnabled').checked = tgNotif !== false;
       document.getElementById('emUserNotifEnabled').checked = emNotif !== false;
       document.getElementById('userTelegramModal').style.display = 'flex';
@@ -1711,7 +1730,9 @@ pm2 save</pre>
     async function handleSaveUserTelegram(e) {
       e.preventDefault();
       const userId = document.getElementById('tgUserId').value;
+      const email = document.getElementById('tgUserEmail').value.trim();
       const chatId = document.getElementById('tgUserChatId').value.trim();
+      const botToken = document.getElementById('tgUserBotToken').value.trim();
       const tgNotif = document.getElementById('tgUserNotifEnabled').checked;
       const emNotif = document.getElementById('emUserNotifEnabled').checked;
       const btn = document.getElementById('btnSaveOperatorTelegram');
@@ -1724,21 +1745,23 @@ pm2 save</pre>
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            email: email,
             telegram_chat_id: chatId,
+            telegram_bot_token: botToken,
             telegram_notifications: tgNotif,
             email_notifications: emNotif
           })
         });
         const data = await res.json();
         if (data.success) {
-          alert('Operator Telegram settings updated successfully.');
+          alert('Operator Telegram & Alert settings updated successfully.');
           closeUserTelegramModal();
           fetchUsers();
         } else {
           alert('Error: ' + data.message);
         }
       } catch (err) {
-        alert('Failed to save operator Telegram settings.');
+        alert('Failed to save operator settings.');
       } finally {
         btn.disabled = false;
         btn.textContent = 'Save Settings';
@@ -1751,7 +1774,9 @@ pm2 save</pre>
         alert('Please enter a Telegram Chat ID first.');
         return;
       }
-      const token = document.getElementById('cfg_telegram_bot_token')?.value || '';
+      const userToken = document.getElementById('tgUserBotToken')?.value.trim();
+      const systemToken = document.getElementById('cfg_telegram_bot_token')?.value.trim() || '';
+      const token = userToken || systemToken;
       try {
         const res = await fetch('/api/slot_monitor/test_telegram', {
           method: 'POST',
@@ -1760,7 +1785,8 @@ pm2 save</pre>
         });
         const data = await res.json();
         if (data.success) {
-          alert('✅ Test Ping Sent Successfully to operator chat ID: ' + chatId);
+          const botName = data.bot_info?.username ? `@${data.bot_info.username}` : 'Bot';
+          alert(`✅ Test Ping Sent Successfully to Chat ID ${chatId} via ${botName}!`);
         } else {
           alert('❌ Telegram Ping Failed:\n' + data.message);
         }
@@ -1768,6 +1794,7 @@ pm2 save</pre>
         alert('Network error testing Telegram ping.');
       }
     }
+
 
     // =========================================================================
     // 24/7 SLOT MONITOR & TELEGRAM SYSTEM

@@ -135,14 +135,16 @@ def test_api_slot_monitor_settings(client):
 
 
 def test_api_admin_user_telegram(client):
-    """Test super admin updating operator telegram chat ID."""
+    """Test super admin updating operator telegram chat ID, bot token, and email."""
     with client.session_transaction() as sess:
         sess["user_id"] = 1
         sess["username"] = "superadmin"
         sess["role"] = "super_admin"
 
-    res = client.post("/api/admin/users/2/telegram", json={
-        "telegram_chat_id": "9988776655",
+    res = client.post("/api/admin/users/3/telegram", json={
+        "telegram_chat_id": "8895308694",
+        "telegram_bot_token": "8614915379:AAEauGr9wyzbf5aaqu8AZsBvXagwh6e5jco",
+        "email": "bhardwajvikas824@gmail.com",
         "telegram_notifications": True,
         "email_notifications": True
     })
@@ -150,10 +152,13 @@ def test_api_admin_user_telegram(client):
     data = res.get_json()
     assert data["success"] is True
 
-    # Verify user in database now has the telegram_chat_id
-    user = vfs_db.get_user_by_id(2)
+    # Verify user in database now has the telegram_chat_id, telegram_bot_token, and email
+    user = vfs_db.get_user_by_id(3)
     assert user is not None
-    assert user.get("telegram_chat_id") == "9988776655"
+    assert user.get("telegram_chat_id") == "8895308694"
+    assert user.get("telegram_bot_token") == "8614915379:AAEauGr9wyzbf5aaqu8AZsBvXagwh6e5jco"
+    assert user.get("email") == "bhardwajvikas824@gmail.com"
+
 
 
 def test_d_visa_detection_helpers():

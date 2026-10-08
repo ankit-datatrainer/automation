@@ -611,13 +611,22 @@ def slot_monitor_history():
 @app.route("/api/admin/users/<int:user_id>/telegram", methods=["POST"])
 @super_admin_required
 def admin_user_telegram(user_id):
-    """Super Admin configuration of operator Telegram Chat ID & alert preferences."""
+    """Super Admin configuration of operator Telegram Chat ID, Bot Token & alert preferences."""
     data = request.get_json(force=True, silent=True) or {}
     chat_id = str(data.get("telegram_chat_id", "")).strip()
+    bot_token = data.get("telegram_bot_token")
+    email = data.get("email")
     tg_notif = bool(data.get("telegram_notifications", True))
     em_notif = bool(data.get("email_notifications", True))
 
-    ok, msg = vfs_db.update_user_notifications(user_id, chat_id, tg_notif, em_notif)
+    ok, msg = vfs_db.update_user_notifications(
+        user_id=user_id,
+        telegram_chat_id=chat_id,
+        telegram_notifications=tg_notif,
+        email_notifications=em_notif,
+        telegram_bot_token=bot_token,
+        email=email
+    )
     if ok:
         push_log("ADMIN", f"Updated Telegram/Notification settings for user #{user_id}.")
         return jsonify({"success": True, "message": msg})
@@ -627,17 +636,26 @@ def admin_user_telegram(user_id):
 @app.route("/api/user/notifications", methods=["POST"])
 @login_required
 def user_update_own_notifications():
-    """Operator self-service update of their Telegram Chat ID."""
+    """Operator self-service update of their Telegram Chat ID & custom Bot Token."""
     uid = session.get("user_id")
     if not uid:
         return jsonify({"success": False, "message": "Not authenticated."}), 401
 
     data = request.get_json(force=True, silent=True) or {}
     chat_id = str(data.get("telegram_chat_id", "")).strip()
+    bot_token = data.get("telegram_bot_token")
+    email = data.get("email")
     tg_notif = bool(data.get("telegram_notifications", True))
     em_notif = bool(data.get("email_notifications", True))
 
-    ok, msg = vfs_db.update_user_notifications(uid, chat_id, tg_notif, em_notif)
+    ok, msg = vfs_db.update_user_notifications(
+        user_id=uid,
+        telegram_chat_id=chat_id,
+        telegram_notifications=tg_notif,
+        email_notifications=em_notif,
+        telegram_bot_token=bot_token,
+        email=email
+    )
     if ok:
         push_log("USER", f"Operator updated notification settings (Telegram Chat ID: {chat_id or 'none'}).")
         return jsonify({"success": True, "message": msg})
@@ -655,7 +673,8 @@ def user_test_telegram():
         return jsonify({"success": False, "message": "No Telegram Chat ID configured for your account. Please set it in Alert Settings."}), 400
 
     settings = vfs_db.get_slot_monitor_settings()
-    bot_token = settings.get("telegram_bot_token") or os.getenv("TELEGRAM_BOT_TOKEN", "") or cfg.TELEGRAM_BOT_TOKEN
+    user_bot_token = (user_db.get("telegram_bot_token") or "").strip()
+    bot_token = user_bot_token or settings.get("telegram_bot_token") or os.getenv("TELEGRAM_BOT_TOKEN", "") or cfg.TELEGRAM_BOT_TOKEN
     if not bot_token:
         return jsonify({"success": False, "message": "Telegram Bot Token is not configured."}), 400
 
@@ -670,6 +689,7 @@ def user_test_telegram():
     if not ok:
         return jsonify({"success": False, "message": f"Telegram test failed: {msg}"}), 400
     return jsonify({"success": True, "message": f"Telegram ping delivered successfully to Chat ID {chat_id}!"})
+
 
 
 

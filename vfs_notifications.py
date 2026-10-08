@@ -513,33 +513,40 @@ def broadcast_slot_change_alert(
     )
 
     # 2. Dispatch Telegram Alerts
-    bot_token = settings.get("telegram_bot_token") or os.getenv("TELEGRAM_BOT_TOKEN", "")
-    if bot_token and settings.get("telegram_enabled", 1):
-        target_chat_ids = set()
+    system_bot_token = settings.get("telegram_bot_token") or os.getenv("TELEGRAM_BOT_TOKEN", "") or cfg.TELEGRAM_BOT_TOKEN
+    if settings.get("telegram_enabled", 1):
+        dispatch_targets = []
+        seen_targets = set()
 
-        # Primary Chat IDs
-        if settings.get("telegram_chat_id"):
-            target_chat_ids.add(str(settings["telegram_chat_id"]).strip())
-        if os.getenv("TELEGRAM_CHAT_ID"):
-            target_chat_ids.add(str(os.getenv("TELEGRAM_CHAT_ID")).strip())
+        # Primary Chat IDs (from settings and .env)
+        for prim_id in [settings.get("telegram_chat_id"), os.getenv("TELEGRAM_CHAT_ID")]:
+            if prim_id and system_bot_token:
+                cid = str(prim_id).strip()
+                tok = system_bot_token.strip()
+                if cid and (cid, tok) not in seen_targets:
+                    dispatch_targets.append((cid, tok))
+                    seen_targets.add((cid, tok))
 
-        # Operator chat IDs
+        # Operator chat IDs (using operator's custom bot token if configured, else system bot token)
         for u in users:
             if u.get("telegram_chat_id") and u.get("status") == "active" and u.get("telegram_notifications", 1):
-                target_chat_ids.add(str(u["telegram_chat_id"]).strip())
+                cid = str(u["telegram_chat_id"]).strip()
+                tok = (u.get("telegram_bot_token") or "").strip() or (system_bot_token or "").strip()
+                if cid and tok and (cid, tok) not in seen_targets:
+                    dispatch_targets.append((cid, tok))
+                    seen_targets.add((cid, tok))
 
-        for cid in target_chat_ids:
-            if not cid:
-                continue
+        for cid, tok in dispatch_targets:
             if screenshot_path and os.path.exists(screenshot_path) and event_type == "AVAILABLE":
-                ok, msg = send_telegram_photo(bot_token, cid, screenshot_path, caption=tg_text)
+                ok, msg = send_telegram_photo(tok, cid, screenshot_path, caption=tg_text)
             else:
-                ok, msg = send_telegram_message(bot_token, cid, tg_text)
+                ok, msg = send_telegram_message(tok, cid, tg_text)
 
             if ok:
                 results["telegram_sent"] += 1
             else:
                 results["errors"].append(f"Telegram ({cid}): {msg}")
+
 
     # 3. Dispatch Email Alerts
     if settings.get("email_enabled", 1):
@@ -684,25 +691,34 @@ def broadcast_daily_report(
     """
 
     # Dispatch to Telegram
-    bot_token = settings.get("telegram_bot_token") or os.getenv("TELEGRAM_BOT_TOKEN", "")
-    if bot_token and settings.get("telegram_enabled", 1):
-        target_chat_ids = set()
-        if settings.get("telegram_chat_id"):
-            target_chat_ids.add(str(settings["telegram_chat_id"]).strip())
-        if os.getenv("TELEGRAM_CHAT_ID"):
-            target_chat_ids.add(str(os.getenv("TELEGRAM_CHAT_ID")).strip())
+    system_bot_token = settings.get("telegram_bot_token") or os.getenv("TELEGRAM_BOT_TOKEN", "") or cfg.TELEGRAM_BOT_TOKEN
+    if settings.get("telegram_enabled", 1):
+        dispatch_targets = []
+        seen_targets = set()
+
+        for prim_id in [settings.get("telegram_chat_id"), os.getenv("TELEGRAM_CHAT_ID")]:
+            if prim_id and system_bot_token:
+                cid = str(prim_id).strip()
+                tok = system_bot_token.strip()
+                if cid and (cid, tok) not in seen_targets:
+                    dispatch_targets.append((cid, tok))
+                    seen_targets.add((cid, tok))
+
         for u in users:
             if u.get("telegram_chat_id") and u.get("status") == "active":
-                target_chat_ids.add(str(u["telegram_chat_id"]).strip())
+                cid = str(u["telegram_chat_id"]).strip()
+                tok = (u.get("telegram_bot_token") or "").strip() or (system_bot_token or "").strip()
+                if cid and tok and (cid, tok) not in seen_targets:
+                    dispatch_targets.append((cid, tok))
+                    seen_targets.add((cid, tok))
 
-        for cid in target_chat_ids:
-            if not cid:
-                continue
-            ok, msg = send_telegram_message(bot_token, cid, tg_report)
+        for cid, tok in dispatch_targets:
+            ok, msg = send_telegram_message(tok, cid, tg_report)
             if ok:
                 results["telegram_sent"] += 1
             else:
                 results["errors"].append(f"Telegram ({cid}): {msg}")
+
 
     # Dispatch to Email
     if settings.get("email_enabled", 1):
