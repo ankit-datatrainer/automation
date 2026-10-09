@@ -190,17 +190,18 @@ class VFSAutomation:
                 log.debug(f"Could not take screenshot {name}: {e}")
 
     def dismiss_cookie_banner(self):
-        """Dismiss OneTrust cookie overlay if present."""
+        """Dismiss OneTrust cookie overlay if present and remove residual backdrop."""
         if not self.page:
             return
         try:
             # Check for Reject all or Accept only necessary
             for sel in [
-                "#onetrust-reject-all-handler",
                 "#onetrust-accept-btn-handler",
                 "button#onetrust-accept-btn-handler",
-                "button:has-text('Reject All')",
                 "button:has-text('Accept All Cookies')",
+                "button:has-text('Accept Only Necessary')",
+                "#onetrust-reject-all-handler",
+                "button:has-text('Reject All')",
             ]:
                 loc = self.page.locator(sel).first
                 if loc.count() > 0 and loc.is_visible():
@@ -208,6 +209,17 @@ class VFSAutomation:
                     loc.click(timeout=3000)
                     self.page.wait_for_timeout(500)
                     break
+        except Exception:
+            pass
+
+        # Remove any residual OneTrust dark backdrop that intercepts pointer events
+        try:
+            self.page.evaluate("""() => {
+                const el = document.getElementById('onetrust-consent-sdk');
+                if (el) el.remove();
+                const backdrop = document.querySelector('.onetrust-pc-dark-filter');
+                if (backdrop) backdrop.remove();
+            }""")
         except Exception:
             pass
 
@@ -320,18 +332,60 @@ class VFSAutomation:
 
             try:
                 # -------------------------------------------------------------
-                # STEP 1 & 2: Fast-Path Direct Navigation to VFS Login
+                # STEP 1 & 2: Gateway Transition & Resilient Navigation to VFS Login
                 # -------------------------------------------------------------
-                self.report("NAVIGATION", f"Fast-navigating directly to VFS Portal: {self.cfg.LOGIN_URL}...")
+                self.report("NAVIGATION", f"Accessing VFS Booking Gateway: {self.cfg.BOOK_APPOINTMENT_URL}...")
+                gateway_ok = False
                 try:
-                    self.page.goto(self.cfg.LOGIN_URL, wait_until="domcontentloaded", timeout=self.cfg.ACTION_TIMEOUT_MS)
-                except Exception:
                     self.page.goto(self.cfg.BOOK_APPOINTMENT_URL, wait_until="domcontentloaded", timeout=self.cfg.ACTION_TIMEOUT_MS)
+                    self.dismiss_cookie_banner()
+                    time.sleep(1)
+
+                    # Look for Book now button to initiate legitimate session transition
+                    book_now = self.page.locator('a.lets-get-started:has-text("Book now"), a:has-text("Book now")').first
+                    if book_now.count() > 0 and book_now.is_visible():
+                        self.report("NAVIGATION", "Executing 'Book now' gateway transition...")
+                        book_now.evaluate("e => e.removeAttribute('target')")
+                        book_now.click()
+                        try:
+                            self.page.wait_for_load_state("domcontentloaded", timeout=15000)
+                        except Exception:
+                            pass
+                        gateway_ok = True
+                except Exception as g_ex:
+                    log.warning(f"Gateway transition note: {g_ex}")
+
+                # If gateway was not used or didn't reach login, navigate directly
+                if not gateway_ok or "login" not in self.page.url:
+                    self.report("NAVIGATION", f"Navigating to VFS Login: {self.cfg.LOGIN_URL}...")
+                    try:
+                        self.page.goto(self.cfg.LOGIN_URL, wait_until="domcontentloaded", timeout=self.cfg.ACTION_TIMEOUT_MS)
+                    except Exception:
+                        self.page.goto(self.cfg.BOOK_APPOINTMENT_URL, wait_until="domcontentloaded", timeout=self.cfg.ACTION_TIMEOUT_MS)
 
                 self.dismiss_cookie_banner()
                 if sys.platform == "win32" and not self.cfg.HEADLESS:
                     bring_window_to_front_win32(self.page)
                 self.take_screenshot("01_portal_loaded")
+
+                # Detect 403201 or page-not-found bot blocks immediately
+                content = self.page.content()
+                if "403201" in content or "page-not-found" in self.page.url or "Session Expired" in content:
+                    self.report("WARNING", "Detected VFS session challenge or 403201. Auto-recovering via portal gateway...")
+                    try:
+                        self.page.goto(self.cfg.BOOK_APPOINTMENT_URL, wait_until="domcontentloaded", timeout=self.cfg.ACTION_TIMEOUT_MS)
+                        self.dismiss_cookie_banner()
+                        time.sleep(1.5)
+                        book_now = self.page.locator('a.lets-get-started:has-text("Book now"), a:has-text("Book now")').first
+                        if book_now.count() > 0:
+                            book_now.evaluate("e => e.removeAttribute('target')")
+                            book_now.click()
+                            try:
+                                self.page.wait_for_load_state("domcontentloaded", timeout=15000)
+                            except Exception:
+                                pass
+                    except Exception as rec_ex:
+                        log.warning(f"Auto-recovery note: {rec_ex}")
 
                 if self.check_pause_and_stop():
                     self.report("STOPPED", "Automation cancelled by user.")
@@ -344,7 +398,28 @@ class VFSAutomation:
                 email_input = self.page.locator(
                     'input#email, input[formcontrolname="username"], input[type="email"], input[placeholder*="email" i]'
                 ).first
-                email_input.wait_for(state="visible", timeout=20000)
+
+                # Wait for email input with auto-retry if bot challenge occurred
+                try:
+                    email_input.wait_for(state="visible", timeout=20000)
+                except Exception:
+                    # Check if 403201 or blocked
+                    if "403201" in self.page.content() or "page-not-found" in self.page.url:
+                        self.report("WARNING", "Input not visible due to VFS challenge. Retrying gateway transition...")
+                        try:
+                            self.page.goto(self.cfg.BOOK_APPOINTMENT_URL, wait_until="domcontentloaded", timeout=self.cfg.ACTION_TIMEOUT_MS)
+                            self.dismiss_cookie_banner()
+                            book_now = self.page.locator('a.lets-get-started:has-text("Book now"), a:has-text("Book now")').first
+                            if book_now.count() > 0:
+                                book_now.evaluate("e => e.removeAttribute('target')")
+                                book_now.click()
+                                try:
+                                    self.page.wait_for_load_state("domcontentloaded", timeout=15000)
+                                except Exception:
+                                    pass
+                        except Exception as rec2_ex:
+                            log.warning(f"Secondary recovery note: {rec2_ex}")
+                    email_input.wait_for(state="visible", timeout=20000)
 
                 pwd_input = self.page.locator(
                     'input#password, input[formcontrolname="password"], input[type="password"], input[placeholder*="password" i]'

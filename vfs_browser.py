@@ -261,6 +261,76 @@ def setup_performance_routes(page: Page):
         log.debug(f"Route blocking setup note: {e}")
 
 
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+)
+
+DEFAULT_EXTRA_HEADERS = {
+    "Accept-Language": "en-US,en;q=0.9",
+    "sec-ch-ua": '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+}
+
+STEALTH_INIT_SCRIPT = """
+// 1. Hide webdriver
+Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+
+// 2. Mock chrome runtime & app
+window.chrome = {
+  app: { isInstalled: false },
+  webstore: { onInstallStageChanged: {}, onDownloadProgress: {} },
+  runtime: {
+    PlatformOs: { MAC: 'mac', WIN: 'win', ANDROID: 'android', CROS: 'cros', LINUX: 'linux' },
+    PlatformArch: { ARM: 'arm', X86_32: 'x86-32', X86_64: 'x86-64' },
+    RequestUpdateCheckStatus: { THROTTLED: 'throttled', NO_UPDATE: 'no_update', UPDATE_AVAILABLE: 'update_available' }
+  }
+};
+
+// 3. Mock plugins and languages
+Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+
+// 4. Mock permissions query
+if (window.navigator && window.navigator.permissions) {
+  const originalQuery = window.navigator.permissions.query;
+  window.navigator.permissions.query = (parameters) => (
+    parameters.name === 'notifications' ?
+      Promise.resolve({ state: Notification.permission }) :
+      originalQuery(parameters)
+  );
+}
+"""
+
+
+def ensure_linux_display() -> Optional[str]:
+    """Ensure Linux has an active X display (starts Xvfb if DISPLAY is not present)."""
+    if sys.platform == "win32":
+        return None
+    
+    display = os.environ.get("DISPLAY")
+    if display:
+        return display
+
+    import shutil
+    xvfb_bin = shutil.which("Xvfb")
+    if xvfb_bin:
+        disp = ":99"
+        try:
+            p = subprocess.Popen(
+                ["Xvfb", disp, "-screen", "0", "1920x1080x24", "-nolisten", "tcp"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            os.environ["DISPLAY"] = disp
+            log.info(f"Started Xvfb virtual display on {disp} (PID {p.pid})")
+            return disp
+        except Exception as e:
+            log.warning(f"Could not start Xvfb: {e}")
+    return None
+
+
 def launch_stealth_browser(
     playwright: Playwright,
     channel: str = "brave",
@@ -268,7 +338,7 @@ def launch_stealth_browser(
     user_data_dir: Optional[Path] = None,
     dashboard_url: str = "http://127.0.0.1:4140"
 ) -> Tuple[BrowserContext, Page]:
-    """Launch high-performance resilient browser session."""
+    """Launch high-performance resilient browser session with full anti-bot stealth protection."""
     exe = find_browser_executable(preferred=channel)
     profile_dir = user_data_dir or get_profile_dir(channel)
 
@@ -280,8 +350,18 @@ def launch_stealth_browser(
         except Exception:
             pass
 
+    # On Linux VPS: if Xvfb display is active, run headed (headless=False)
+    # because headed mode inside Xvfb completely bypasses Cloudflare 403201 bot detection
+    actual_headless = headless
+    if sys.platform != "win32":
+        disp = ensure_linux_display()
+        if disp:
+            actual_headless = False
+            log.info(f"Linux virtual display detected ({disp}). Running browser headed inside Xvfb to bypass Cloudflare bot detection.")
+
     args = [
         "--start-maximized",
+        "--window-size=1920,1080",
         "--no-default-browser-check",
         "--no-first-run",
         "--no-sandbox",
@@ -298,9 +378,13 @@ def launch_stealth_browser(
 
     launch_kwargs = {
         "user_data_dir": str(profile_dir),
-        "headless": headless,
+        "headless": actual_headless,
         "args": args,
-        "no_viewport": not headless,
+        "user_agent": DEFAULT_USER_AGENT,
+        "viewport": {"width": 1920, "height": 1080},
+        "locale": "en-US",
+        "timezone_id": "Asia/Kolkata",
+        "extra_http_headers": DEFAULT_EXTRA_HEADERS,
         "ignore_default_args": ["--enable-automation"],
     }
 
@@ -360,6 +444,12 @@ def launch_stealth_browser(
     if not context:
         raise RuntimeError(f"Could not launch browser context after all fallbacks: {last_err}")
 
+    # Inject stealth evasion scripts across all frames and pages
+    try:
+        context.add_init_script(STEALTH_INIT_SCRIPT)
+    except Exception as init_ex:
+        log.warning(f"Could not register stealth init script: {init_ex}")
+
     # Single active tab focused directly on VFS portal
     if context.pages:
         vfs_page = context.pages[0]
@@ -369,7 +459,7 @@ def launch_stealth_browser(
     # Apply tracking script blocker for high-speed page loads
     setup_performance_routes(vfs_page)
 
-    if not headless:
+    if not actual_headless:
         try:
             vfs_page.bring_to_front()
         except Exception:
